@@ -1,0 +1,14 @@
+# Azure Computer Vision API 설정
+SUBSCRIPTION_KEY=your_azure_subscription_key_here
+ENDPOINT=https://your-resource-name.cognitiveservices.azure.com/
+
+# OpenAI API 설정
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_ENDPOINT=https://your-openai-resource.openai.azure.com/
+CHAT_DEPLOYMENT_NAME=your_chat_deployment_name
+EMBEDDING_DEPLOYMENT_NAME=your_embedding_deployment_name
+
+# Azure Search 설정
+SEARCH_ENDPOINT=https://your-search-service.search.windows.net
+SEARCH_API_KEY=your_search_api_key_here
+SEARCH_INDEX_NAME=your_search_index_name 
