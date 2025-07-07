@@ -9,6 +9,10 @@
 - **OCR**: 이미지 내 텍스트 추출
 - **Interview Analysis**: 면접 평가 보조 시스템
 - **RAG Application**: 검색 강화 생성 애플리케이션
+- **FastAPI Backend**: 면접 분석 및 평가 API 서버 (NEW!)
+  - Azure OpenAI GPT-4o 기반 면접 분석
+  - ChromaDB 벡터 저장소 활용
+  - React 프론트엔드와 API 통신
 
 ## 설치 및 설정
 
@@ -58,11 +62,40 @@ streamlit run python/interview.py
 python python/rag.app.py
 ```
 
+### FastAPI 백엔드 서버
+```bash
+cd backend
+pip install -r requirements.txt
+python run.py
+```
+
+- **API 문서**: http://localhost:8000/docs
+- **서버 주소**: http://localhost:8000
+
 ## 파일 구조
 - `python/`: Python 스크립트 및 애플리케이션
 - `UI/`: React/TypeScript 기반 프론트엔드
+- `backend/`: FastAPI 백엔드 시스템
 - `requirements.txt`: Python 패키지 의존성
 - `env_example.txt`: 환경 변수 설정 예시
+
+### 백엔드 구조
+```
+backend/
+├── app/
+│   ├── main.py              # FastAPI 애플리케이션
+│   ├── config.py            # 환경변수 설정
+│   ├── models.py            # Pydantic 모델
+│   ├── routers/
+│   │   └── analyze.py       # 면접 분석 API
+│   └── services/
+│       ├── azure_openai.py  # Azure OpenAI 서비스
+│       └── chroma_store.py  # ChromaDB 저장소
+├── requirements.txt         # 백엔드 의존성
+├── env_config.txt          # 환경변수 설정 예시
+├── run.py                  # 서버 실행 스크립트
+└── README.md               # 백엔드 문서
+```
 
 ## 주의사항
 - API 키는 반드시 안전하게 보관하세요

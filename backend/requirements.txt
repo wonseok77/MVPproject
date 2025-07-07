@@ -1,0 +1,21 @@
+# FastAPI 관련 패키지
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# Azure OpenAI 클라이언트
+openai
+
+# 벡터 저장소 (ChromaDB 대신 가벼운 대안)
+# chromadb 대신 임시로 주석처리 - 설치 후 수동 설치
+# chromadb
+
+# 환경변수 관리
+python-dotenv
+
+# 유틸리티
+python-multipart
+
+# 로깅 및 디버깅
+python-json-logger 
