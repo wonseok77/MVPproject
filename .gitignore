@@ -56,4 +56,5 @@ build/
 chroma_db/
 
 # Azure
-azure_config.json 
+azure_config.json .env
+.env
