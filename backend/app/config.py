@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     azure_speech_region: str = os.getenv("AZURE_SPEECH_REGION", "koreacentral")
     azure_speech_endpoint: str = os.getenv("AZURE_SPEECH_ENDPOINT", "")
     
+    # Azure OpenAI Transcription 설정 (면접 STT용)
+    azureopenai_endpoint: str = os.getenv("AZUREOPENAI_ENDPOINT", "")
+    azureopenai_key: str = os.getenv("AZUREOPENAI_KEY", "")
+    azureopenai_api_version: str = os.getenv("AZUREOPENAI_API_VERSION", "2024-05-01-preview")
+    azureopenai_transcription_model: str = os.getenv("AZUREOPENAI_TRANSCRIPTION_MODEL", "gpt-4o-transcribe")
+    
     # Azure Form Recognizer 설정
     azure_form_key: str = os.getenv("AZURE_FORM_KEY", "")
     azure_form_endpoint: str = os.getenv("AZURE_FORM_ENDPOINT", "")

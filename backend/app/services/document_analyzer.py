@@ -600,32 +600,40 @@ class DocumentAnalyzer:
             
             resume_files = []
             job_files = []
+            all_files = []  # 모든 파일을 위한 목록 추가
             
             for blob in blob_list:
+                file_info = {
+                    "name": blob.name,
+                    "size": blob.size,
+                    "last_modified": blob.last_modified.isoformat() if blob.last_modified else None
+                }
+                
+                # 모든 파일 목록에 추가
+                all_files.append(file_info)
+                
                 if blob.name.startswith("resume_"):
                     resume_files.append({
-                        "name": blob.name,
-                        "display_name": blob.name.replace("resume_", ""),
-                        "size": blob.size,
-                        "last_modified": blob.last_modified.isoformat() if blob.last_modified else None
+                        **file_info,
+                        "display_name": blob.name.replace("resume_", "")
                     })
                 elif blob.name.startswith("job_"):
                     job_files.append({
-                        "name": blob.name,
-                        "display_name": blob.name.replace("job_", ""),
-                        "size": blob.size,
-                        "last_modified": blob.last_modified.isoformat() if blob.last_modified else None
+                        **file_info,
+                        "display_name": blob.name.replace("job_", "")
                     })
             
             # 최신 파일 순으로 정렬
             resume_files.sort(key=lambda x: x['last_modified'] or '', reverse=True)
             job_files.sort(key=lambda x: x['last_modified'] or '', reverse=True)
+            all_files.sort(key=lambda x: x['last_modified'] or '', reverse=True)
             
             return {
                 "status": "success",
                 "resume_files": resume_files,
                 "job_files": job_files,
-                "total_files": len(resume_files) + len(job_files)
+                "files": all_files,  # 모든 파일 목록 추가
+                "total_files": len(all_files)
             }
             
         except Exception as e:

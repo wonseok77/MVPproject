@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileText, MessageSquare, Send, User, Mic, CheckCircle, BarChart3 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -13,6 +13,10 @@ interface MainContentProps {
   documentAnalysisError: string | null;
   selectedResumeFile: string | null;
   selectedJobFile: string | null;
+  integratedAnalysisResult: string | null;
+  integratedAnalysisError: string | null;
+  forceUpdateCounter: number;
+  clearSignal: number; // 초기화 신호
 }
 
 const MainContent: React.FC<MainContentProps> = ({
@@ -25,11 +29,55 @@ const MainContent: React.FC<MainContentProps> = ({
   documentAnalysisResult,
   documentAnalysisError,
   selectedResumeFile,
-  selectedJobFile
+  selectedJobFile,
+  integratedAnalysisResult,
+  integratedAnalysisError,
+  forceUpdateCounter,
+  clearSignal
 }) => {
   const [prompt, setPrompt] = useState('');
   const [chatMessages, setChatMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
   const [isQuerying, setIsQuerying] = useState(false);
+  
+  // 로컬 상태로 데이터 관리 (강제로!)
+  const [localDocumentResult, setLocalDocumentResult] = useState<string | null>(null);
+  const [localIntegratedResult, setLocalIntegratedResult] = useState<string | null>(null);
+
+  // Props 변경 감지를 위한 useEffect
+  useEffect(() => {
+    console.log('🔍 MainContent - documentAnalysisResult 변경 감지:', documentAnalysisResult ? `있음 (${documentAnalysisResult.length}자)` : '없음');
+    if (documentAnalysisResult) {
+      setLocalDocumentResult(documentAnalysisResult);
+      console.log('🔧 로컬 상태로 복사 완료!');
+    }
+  }, [documentAnalysisResult]);
+
+  useEffect(() => {
+    console.log('🔍 MainContent - integratedAnalysisResult 변경 감지:', integratedAnalysisResult ? `있음 (${integratedAnalysisResult.length}자)` : '없음');
+    if (integratedAnalysisResult) {
+      setLocalIntegratedResult(integratedAnalysisResult);
+      console.log('🔧 통합분석 로컬 상태로 복사 완료!');
+    }
+  }, [integratedAnalysisResult]);
+
+  useEffect(() => {
+    console.log('🔍 MainContent - forceUpdateCounter 변경 감지:', forceUpdateCounter);
+  }, [forceUpdateCounter]);
+
+  // 명시적 초기화 함수
+  const clearLocalStates = () => {
+    setLocalDocumentResult(null);
+    setLocalIntegratedResult(null);
+    console.log('🔄 MainContent - 로컬 상태 명시적 초기화 완료');
+  };
+
+  // 초기화 신호 감지
+  useEffect(() => {
+    if (clearSignal > 0) {
+      clearLocalStates();
+      console.log('🔄 MainContent - 초기화 신호 감지됨:', clearSignal);
+    }
+  }, [clearSignal]);
 
   const handleSubmitPrompt = async () => {
     if (!prompt.trim()) return;
@@ -154,16 +202,24 @@ const MainContent: React.FC<MainContentProps> = ({
         <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center space-x-2">
           <BarChart3 className="w-6 h-6 text-blue-600" />
           <span>문서 분석 결과</span>
+          {localDocumentResult && (
+            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+              ✅ 불러옴 ({localDocumentResult.length}자)
+            </span>
+          )}
         </h2>
+
+
+
         <div className="bg-gray-50 rounded-lg p-4 max-h-180 overflow-y-auto">
           {documentAnalysisError ? (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-700">❌ {documentAnalysisError}</p>
             </div>
-          ) : documentAnalysisResult ? (
+          ) : localDocumentResult ? (
             <div className="prose prose-sm max-w-none text-sm text-gray-700 leading-relaxed">
               <ReactMarkdown>
-                {documentAnalysisResult}
+                {localDocumentResult}
               </ReactMarkdown>
             </div>
           ) : (
@@ -214,6 +270,29 @@ const MainContent: React.FC<MainContentProps> = ({
           )}
         </div>
       </div>
+
+      {/* Integrated Analysis Result (2-Step Demo) */}
+      {(localIntegratedResult || integratedAnalysisError) && (
+        <div className="bg-white rounded-lg shadow-sm border border-blue-200 p-6 mb-6">
+          <h2 className="text-xl font-semibold text-blue-800 mb-4 flex items-center space-x-2">
+            <BarChart3 className="w-6 h-6 text-blue-600" />
+            <span>🎯 최종 종합 평가 (2단계 통합 분석)</span>
+          </h2>
+          <div className="bg-blue-50 rounded-lg p-4 max-h-180 overflow-y-auto">
+            {integratedAnalysisError ? (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700">❌ {integratedAnalysisError}</p>
+              </div>
+            ) : localIntegratedResult ? (
+              <div className="prose prose-sm max-w-none text-sm text-gray-700 leading-relaxed">
+                <ReactMarkdown>
+                  {localIntegratedResult}
+                </ReactMarkdown>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
 
       {/* Prompt Input */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -277,4 +356,5 @@ const MainContent: React.FC<MainContentProps> = ({
   );
 };
 
+// Force module reload
 export default MainContent;

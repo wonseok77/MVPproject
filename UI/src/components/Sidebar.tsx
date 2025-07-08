@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Send, FileText, User, Mic, ChevronLeft, ChevronRight, RefreshCw, BarChart3, List, X } from 'lucide-react';
 import FileUploader from './FileUploader';
-import { uploadAndAnalyze, uploadAndAnalyzeFast, uploadBothFiles, analyzeFiles, getFilesList } from '../services/api';
+import { uploadAndAnalyze, uploadAndAnalyzeFast, uploadBothFiles, analyzeFiles, getFilesList, integratedAnalysis, uploadAndTranscribeInterview, quickInterviewAnalysis } from '../services/api';
 import type { UploadAndAnalyzeResponse, AnalysisResponse, FilesListResponse, FileInfo } from '../services/api';
 
 interface SidebarProps {
@@ -23,6 +23,10 @@ interface SidebarProps {
   selectedJobFile: string | null;
   onSelectedResumeChange: (filename: string | null) => void;
   onSelectedJobChange: (filename: string | null) => void;
+  onIntegratedAnalysisUpdate: (result: string | null, error: string | null) => void;
+  sttResult: string;
+  documentAnalysisResult: string | null;
+  onResetAll: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -43,7 +47,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   selectedResumeFile,
   selectedJobFile,
   onSelectedResumeChange,
-  onSelectedJobChange
+  onSelectedJobChange,
+  onIntegratedAnalysisUpdate,
+  sttResult,
+  documentAnalysisResult,
+  onResetAll
 }) => {
   // 문서 분석 상태 관리
   const [isDocumentAnalyzing, setIsDocumentAnalyzing] = useState(false);
@@ -51,6 +59,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<string>('');
   const [fastMode, setFastMode] = useState(true); // 기본값: 고속 모드
+  
+  // 2단계 통합 분석 상태 관리
+  const [isIntegratedAnalyzing, setIsIntegratedAnalyzing] = useState(false);
   
   // 파일 목록 상태 관리
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
@@ -63,9 +74,13 @@ const Sidebar: React.FC<SidebarProps> = ({
     job_files: []
   });
 
+  // 분석 모드 설정 토글 상태
+  const [showAnalysisMode, setShowAnalysisMode] = useState(false);
+
   const canStartAnalysis = jobPostingFile && resumeFile && interviewFile;
   const canAnalyzeDocuments = jobPostingFile && resumeFile;
   const canAnalyzeSelected = selectedResumeFile && selectedJobFile;
+  const canIntegratedAnalysis = (documentAnalysisResult || analysisResult) && sttResult;
 
   // 분석 결과가 변경될 때마다 부모 컴포넌트에게 알림
   useEffect(() => {
@@ -205,28 +220,57 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  // 2단계 통합 분석 핸들러
+  const handleIntegratedAnalysis = async () => {
+    if (!canIntegratedAnalysis) {
+      onIntegratedAnalysisUpdate(null, '1단계 문서 분석과 면접 STT 결과가 모두 필요합니다.');
+      return;
+    }
+
+    setIsIntegratedAnalyzing(true);
+    onIntegratedAnalysisUpdate(null, null);
+
+    try {
+      console.log('🔄 2단계: 통합 분석 시작...');
+      
+      // 문서 분석 결과 우선순위: documentAnalysisResult > analysisResult
+      const docResult = documentAnalysisResult || analysisResult || '';
+      
+      const result = await integratedAnalysis(
+        docResult,
+        sttResult,
+        resumeFile?.name || selectedResumeFile || '',
+        jobPostingFile?.name || selectedJobFile || ''
+      );
+      
+      if (result.status === 'success' && result.integrated_analysis) {
+        onIntegratedAnalysisUpdate(result.integrated_analysis, null);
+        console.log('✅ 2단계 통합 분석 완료!');
+      } else {
+        onIntegratedAnalysisUpdate(null, result.message || '통합 분석에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('❌ 통합 분석 오류:', error);
+      onIntegratedAnalysisUpdate(null, `통합 분석 중 오류가 발생했습니다: ${error}`);
+    } finally {
+      setIsIntegratedAnalyzing(false);
+    }
+  };
+
   // 분석 결과 초기화
   const handleResetAnalysis = () => {
     setAnalysisResult(null);
     setAnalysisError(null);
   };
 
-  // 전체 초기화 (파일 + 분석 결과)
+  // 전체 초기화 (파일 + 분석 결과) - 이제 App.tsx에서 처리
   const handleResetAll = () => {
-    // 업로드된 파일들 제거
-    onRemoveJobPosting();
-    onRemoveResume();
-    onRemoveInterview();
+    // 부모 컴포넌트의 초기화 함수 호출
+    onResetAll();
     
-    // 선택한 파일들 제거
-    onSelectedResumeChange(null);
-    onSelectedJobChange(null);
-    
-    // 분석 결과 초기화
+    // 로컬 상태 초기화
     setAnalysisResult(null);
     setAnalysisError(null);
-    
-    // 파일 목록 숨기기
     setShowFilesList(false);
   };
 
@@ -332,7 +376,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        <div className="space-y-6">
+          <div className="space-y-6">
             {/* 채용공고 업로드 */}
             <div className="flex items-center space-x-2 mb-3">
               <FileText className="w-5 h-5 text-blue-600" />
@@ -378,33 +422,59 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         {/* 버튼 섹션 */}
         <div className="mt-8 pt-6 border-t border-gray-200 space-y-3">
-          {/* 분석 모드 선택 */}
-          <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-            <h3 className="text-sm font-semibold text-blue-800 mb-2">분석 모드</h3>
-            <div className="space-y-2">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  name="analysisMode"
-                  checked={fastMode}
-                  onChange={() => setFastMode(true)}
-                  className="text-blue-600"
-                />
-                <span className="text-sm text-blue-700">⚡ 고속 모드 (시연용 - 10초 대기)</span>
-              </label>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  name="analysisMode"
-                  checked={!fastMode}
-                  onChange={() => setFastMode(false)}
-                  className="text-blue-600"
-                />
-                <span className="text-sm text-blue-700">🔄 일반 모드 (정확한 인덱싱 - 30초 대기)</span>
-              </label>
-            </div>
+          {/* 분석 모드 선택 토글 */}
+          <div className="mb-4">
+            <button
+              onClick={() => setShowAnalysisMode(!showAnalysisMode)}
+              className="w-full flex items-center justify-between p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+            >
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-semibold text-blue-800">
+                  📊 분석 설정
+                </span>
+                <span className="text-xs text-blue-600">
+                  (성능 최적화 옵션)
+                </span>
+              </div>
+              <ChevronRight className={`w-4 h-4 text-blue-600 transform transition-transform ${showAnalysisMode ? 'rotate-90' : ''}`} />
+            </button>
+            
+            {showAnalysisMode && (
+              <div className="mt-2 p-3 bg-white border border-blue-200 rounded-lg space-y-2">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="analysisMode"
+                    checked={fastMode}
+                    onChange={() => setFastMode(true)}
+                    className="text-blue-600"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm text-blue-700 font-medium">⚡ 빠른 분석</span>
+                    <p className="text-xs text-blue-600">스마트 청킹 + 10초 인덱싱</p>
+                    <p className="text-xs text-blue-500">• 핵심 키워드 중심 벡터화</p>
+                    <p className="text-xs text-blue-500">• 실시간 응답용 최적화</p>
+                  </div>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="analysisMode"
+                    checked={!fastMode}
+                    onChange={() => setFastMode(false)}
+                    className="text-blue-600"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm text-blue-700 font-medium">🔄 정밀 분석</span>
+                    <p className="text-xs text-blue-600">딥 청킹 + 30초 완전 인덱싱</p>
+                    <p className="text-xs text-blue-500">• 문맥/의미 완전 분석</p>
+                    <p className="text-xs text-blue-500">• 미묘한 표현까지 캐치</p>
+                  </div>
+                </label>
+              </div>
+            )}
           </div>
-          
+
           {/* 업로드된 파일들 분석 버튼 */}
           <button
             onClick={handleDocumentAnalysis}
@@ -419,8 +489,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               <BarChart3 className="w-5 h-5" />
               <span>
                 {isDocumentAnalyzing 
-                  ? (fastMode ? '⚡ 고속 분석 중...' : '🔄 일반 분석 중...') 
-                  : (fastMode ? '⚡ 고속 분석 (시연용)' : '🔄 일반 분석')
+                  ? (fastMode ? '⚡ 빠른 분석 중...' : '🔄 정밀 분석 중...') 
+                  : (fastMode ? '⚡ 빠른 분석' : '🔄 정밀 분석')
                 }
               </span>
             </div>
@@ -442,6 +512,22 @@ const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
 
+          {/* 2단계 통합 분석 버튼 */}
+          <button
+            onClick={handleIntegratedAnalysis}
+            disabled={!canIntegratedAnalysis || isIntegratedAnalyzing}
+            className={`w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-lg font-medium transition-all border-2
+              ${canIntegratedAnalysis && !isIntegratedAnalyzing
+                ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 transform hover:scale-105'
+                : 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'
+              }`}
+          >
+            <BarChart3 className="w-5 h-5" />
+            <span>
+              {isIntegratedAnalyzing ? '🔄 통합 분석 중...' : '🎯 2단계: 최종 종합 평가'}
+            </span>
+          </button>
+
           {/* 전체 초기화 버튼 */}
           <button
             onClick={handleResetAll}
@@ -449,22 +535,6 @@ const Sidebar: React.FC<SidebarProps> = ({
           >
             <X className="w-4 h-4" />
             <span>전체 초기화</span>
-          </button>
-
-          {/* 전체 분석 버튼 */}
-          <button
-            onClick={onStartAnalysis}
-            disabled={!canStartAnalysis || isAnalyzing}
-            className={`w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-lg font-medium transition-all
-              ${canStartAnalysis && !isAnalyzing
-                ? 'bg-blue-600 text-white hover:bg-blue-700 transform hover:scale-105'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              }`}
-          >
-            <Send className="w-5 h-5" />
-            <span>
-              {isAnalyzing ? '전체 분석 중...' : '전체 분석 시작'}
-            </span>
           </button>
         </div>
 

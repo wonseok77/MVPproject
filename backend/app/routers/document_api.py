@@ -2,6 +2,8 @@
 문서 분석 API 라우터 - 파일 업로드 및 분석
 """
 import logging
+import datetime
+import json
 from fastapi import APIRouter, HTTPException, status, UploadFile, File
 from pydantic import BaseModel
 from ..services.document_analyzer import (
@@ -496,3 +498,382 @@ async def get_indexer_status_api():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"인덱서 상태 확인 실패: {str(e)}"
         ) 
+
+@router.post("/integrated-analysis")
+async def integrated_analysis_api(request: dict):
+    """
+    2단계 시연용: 문서 분석 + 면접 STT 통합 분석
+    
+    Args:
+        request: {
+            "document_analysis": "1단계 문서 분석 결과",
+            "interview_stt": "면접 STT 결과",
+            "resume_filename": "이력서 파일명",
+            "job_filename": "채용공고 파일명"
+        }
+        
+    Returns:
+        dict: 최종 종합 평가 결과
+    """
+    try:
+        document_analysis = request.get("document_analysis", "")
+        interview_stt = request.get("interview_stt", "")
+        resume_filename = request.get("resume_filename", "")
+        job_filename = request.get("job_filename", "")
+        
+        logger.info("🔄 2단계: 문서+면접 통합 분석 시작")
+        
+        if not document_analysis or not interview_stt:
+            return {
+                "status": "error",
+                "message": "문서 분석 결과와 면접 STT 결과가 모두 필요합니다."
+            }
+        
+        # 통합 분석 프롬프트
+        prompt = f"""
+당신은 전문 채용 컨설턴트입니다. 아래 1단계 서류 심사 결과와 2단계 면접 결과를 종합하여 최종 평가를 해주세요.
+
+## 📋 1단계: 서류 심사 결과
+{document_analysis}
+
+## 🎤 2단계: 면접 내용 (STT 결과)
+{interview_stt}
+
+---
+
+아래 형식으로 **최종 종합 평가**를 작성해주세요:
+
+## 🎯 최종 종합 평가
+
+### 📊 단계별 평가 요약
+- **서류 심사**: [1단계 결과 요약] 
+- **면접 평가**: [면접 내용 기반 평가]
+- **종합 점수**: XX/100점
+
+### ✅ 최종 강점
+1. [서류+면접에서 확인된 핵심 강점]
+2. [일관성 있게 나타난 역량]
+3. [특별히 인상적인 부분]
+
+### ⚠️ 최종 우려사항
+1. [서류와 면접에서 발견된 gap]
+2. [보완 필요한 영역]
+3. [추가 검증 필요한 부분]
+
+### 💼 채용 권고사항
+- **최종 권고**: [채용 강력 추천/조건부 추천/보류/불합격]
+- **배치 추천 부서**: [구체적 부서명 + 이유]
+- **온보딩 시 주의사항**: [신입사원 적응을 위한 조언]
+
+### 🎯 면접관을 위한 추가 확인 질문
+1. [기술적 깊이 확인 질문]
+2. [동기/열정 확인 질문]
+3. [팀 적합성 확인 질문]
+
+### 📈 성장 가능성 및 장기 전망
+[해당 지원자의 3-5년 후 성장 가능성과 회사 기여도 예측]
+"""
+        
+        # LLM을 통한 통합 분석
+        result = document_analyzer.llm.invoke(prompt)
+        
+        return {
+            "status": "success",
+            "analysis_type": "integrated",
+            "input_summary": {
+                "document_analysis_length": len(document_analysis),
+                "interview_stt_length": len(interview_stt),
+                "resume_file": resume_filename,
+                "job_file": job_filename
+            },
+            "integrated_analysis": result.content
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ 통합 분석 중 오류: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"통합 분석 실패: {str(e)}"
+        }
+
+@router.post("/save-analysis-result")
+async def save_analysis_result_api(request: dict):
+    """
+    분석 결과를 Azure Blob Storage에 JSON 파일로 저장
+    
+    Args:
+        request: {
+            "metadata": {
+                "saved_at": "2024-01-15T10:30:00Z",
+                "resume_file": "이력서 파일명",
+                "job_file": "채용공고 파일명", 
+                "analysis_type": "document | integrated"
+            },
+            "results": {
+                "document_analysis": "문서 분석 결과",
+                "interview_stt": "면접 STT 결과",
+                "integrated_analysis": "통합 분석 결과"
+            }
+        }
+        
+    Returns:
+        dict: 저장 결과
+    """
+    try:
+        logger.info("💾 분석 결과 저장 요청")
+        
+        # 요청 데이터 검증
+        if not request.get("metadata") or not request.get("results"):
+            return {
+                "status": "error",
+                "message": "metadata와 results가 필요합니다."
+            }
+        
+        # 파일명 생성 (타임스탬프 기반)
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        analysis_type = request["metadata"].get("analysis_type", "unknown")
+        filename = f"analysis_result_{analysis_type}_{timestamp}.json"
+        
+        # JSON 데이터 준비
+        save_data = {
+            "metadata": request["metadata"],
+            "results": request["results"],
+            "saved_info": {
+                "filename": filename,
+                "saved_at": datetime.datetime.now().isoformat(),
+                "file_size": len(str(request))
+            }
+        }
+        
+        # JSON 문자열로 변환
+        import json
+        json_content = json.dumps(save_data, ensure_ascii=False, indent=2)
+        json_bytes = json_content.encode('utf-8')
+        
+        # Azure Blob Storage에 저장
+        result = document_analyzer.upload_file_to_storage(json_bytes, filename)
+        
+        if result["status"] == "success":
+            logger.info(f"✅ 분석 결과 저장 완료: {filename}")
+            return {
+                "status": "success",
+                "message": "분석 결과가 성공적으로 저장되었습니다.",
+                "filename": filename,
+                "saved_at": save_data["saved_info"]["saved_at"],
+                "file_size": save_data["saved_info"]["file_size"]
+            }
+        else:
+            logger.error(f"❌ 분석 결과 저장 실패: {result['message']}")
+            return {
+                "status": "error",
+                "message": f"저장 실패: {result['message']}"
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ 분석 결과 저장 중 오류: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"저장 중 오류: {str(e)}"
+        }
+
+@router.get("/get-saved-results")
+async def get_saved_results_api():
+    """
+    저장된 분석 결과 목록 조회
+    
+    Returns:
+        dict: 저장된 결과 파일 목록
+    """
+    try:
+        logger.info("📋 저장된 분석 결과 목록 조회")
+        
+        # 전체 파일 목록 조회
+        files_result = document_analyzer.get_blob_files_list()
+        
+        if files_result["status"] != "success":
+            return {
+                "status": "error",
+                "message": "파일 목록 조회 실패"
+            }
+        
+        # 분석 결과 파일들만 필터링 (analysis_result_로 시작하는 파일들)
+        all_files = files_result.get("files", [])
+        result_files = []
+        
+        for file_info in all_files:
+            filename = file_info.get("name", "")
+            if filename.startswith("analysis_result_") and filename.endswith(".json"):
+                # 메타데이터 추출 시도
+                try:
+                    # 파일명에서 정보 추출
+                    parts = filename.replace("analysis_result_", "").replace(".json", "").split("_")
+                    if len(parts) >= 2:
+                        analysis_type = parts[0]
+                        timestamp = "_".join(parts[1:])
+                        
+                        result_files.append({
+                            "filename": filename,
+                            "metadata": {
+                                "analysis_type": analysis_type,
+                                "timestamp": timestamp,
+                                "saved_at": file_info.get("last_modified", ""),
+                                "file_size": file_info.get("size", 0)
+                            }
+                        })
+                except Exception as e:
+                    logger.warning(f"파일명 파싱 오류: {filename} - {str(e)}")
+                    # 기본 정보만 추가
+                    result_files.append({
+                        "filename": filename,
+                        "metadata": {
+                            "analysis_type": "unknown",
+                            "timestamp": "",
+                            "saved_at": file_info.get("last_modified", ""),
+                            "file_size": file_info.get("size", 0)
+                        }
+                    })
+        
+        # 최신 순으로 정렬
+        result_files.sort(key=lambda x: x["metadata"]["saved_at"], reverse=True)
+        
+        logger.info(f"✅ 저장된 분석 결과 {len(result_files)}개 발견")
+        return {
+            "status": "success",
+            "total_results": len(result_files),
+            "results": result_files
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ 저장된 결과 목록 조회 중 오류: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"목록 조회 실패: {str(e)}"
+        }
+
+@router.get("/load-analysis-result/{filename}")
+async def load_analysis_result_api(filename: str):
+    """
+    저장된 분석 결과 불러오기
+    
+    Args:
+        filename: 불러올 결과 파일명
+        
+    Returns:
+        dict: 저장된 분석 결과 데이터
+    """
+    try:
+        logger.info(f"📂 분석 결과 불러오기: {filename}")
+        
+        # 파일명 검증
+        if not filename.startswith("analysis_result_") or not filename.endswith(".json"):
+            return {
+                "status": "error",
+                "message": "올바른 분석 결과 파일이 아닙니다."
+            }
+        
+        # Azure Blob Storage에서 파일 읽기
+        if document_analyzer.blob_service_client is None:
+            return {
+                "status": "error",
+                "message": "Azure Storage가 설정되지 않았습니다."
+            }
+        
+        blob_client = document_analyzer.blob_service_client.get_blob_client(
+            container=document_analyzer.container_name,
+            blob=filename
+        )
+        
+        # 파일 다운로드
+        try:
+            blob_data = blob_client.download_blob()
+            json_content = blob_data.readall().decode('utf-8')
+            
+            # JSON 파싱
+            import json
+            result_data = json.loads(json_content)
+            
+            logger.info(f"✅ 분석 결과 불러오기 완료: {filename}")
+            return {
+                "status": "success",
+                "filename": filename,
+                "data": result_data,
+                "loaded_at": datetime.datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            if "BlobNotFound" in str(e):
+                return {
+                    "status": "error",
+                    "message": "파일을 찾을 수 없습니다."
+                }
+            else:
+                raise e
+        
+    except Exception as e:
+        logger.error(f"❌ 분석 결과 불러오기 중 오류: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"불러오기 실패: {str(e)}"
+        }
+
+@router.delete("/delete-analysis-result/{filename}")
+async def delete_analysis_result_api(filename: str):
+    """
+    저장된 분석 결과 삭제
+    
+    Args:
+        filename: 삭제할 결과 파일명
+        
+    Returns:
+        dict: 삭제 결과
+    """
+    try:
+        logger.info(f"🗑️ 분석 결과 삭제: {filename}")
+        
+        # 파일명 검증
+        if not filename.startswith("analysis_result_") or not filename.endswith(".json"):
+            return {
+                "status": "error",
+                "message": "올바른 분석 결과 파일이 아닙니다."
+            }
+        
+        # Azure Blob Storage에서 파일 삭제
+        if document_analyzer.blob_service_client is None:
+            return {
+                "status": "error",
+                "message": "Azure Storage가 설정되지 않았습니다."
+            }
+        
+        blob_client = document_analyzer.blob_service_client.get_blob_client(
+            container=document_analyzer.container_name,
+            blob=filename
+        )
+        
+        # 파일 삭제
+        try:
+            blob_client.delete_blob()
+            
+            logger.info(f"✅ 분석 결과 삭제 완료: {filename}")
+            return {
+                "status": "success",
+                "message": "분석 결과가 성공적으로 삭제되었습니다.",
+                "filename": filename,
+                "deleted_at": datetime.datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            if "BlobNotFound" in str(e):
+                return {
+                    "status": "error",
+                    "message": "파일을 찾을 수 없습니다."
+                }
+            else:
+                raise e
+        
+    except Exception as e:
+        logger.error(f"❌ 분석 결과 삭제 중 오류: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"삭제 실패: {str(e)}"
+        } 

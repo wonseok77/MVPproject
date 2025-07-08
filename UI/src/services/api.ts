@@ -1,5 +1,5 @@
-// API 기본 설정
-const API_BASE_URL = 'http://localhost:8000'; // FastAPI 서버 주소
+// API 기본 설정 (Vite 프록시 사용)
+const API_BASE_URL = '/api'; // Vite 프록시를 통해 백엔드로 전달
 
 // 응답 타입 정의
 export interface UploadResponse {
@@ -202,6 +202,94 @@ export const getFilesList = async (): Promise<FilesListResponse> => {
     headers: {
       'Content-Type': 'application/json',
     },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+}; 
+
+// 2단계 시연용: 통합 분석
+export const integratedAnalysis = async (
+  documentAnalysis: string,
+  interviewStt: string,
+  resumeFilename?: string,
+  jobFilename?: string
+): Promise<{
+  status: 'success' | 'error';
+  analysis_type?: string;
+  integrated_analysis?: string;
+  message?: string;
+}> => {
+  const response = await fetch(`${API_BASE_URL}/document/integrated-analysis`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      document_analysis: documentAnalysis,
+      interview_stt: interviewStt,
+      resume_filename: resumeFilename || '',
+      job_filename: jobFilename || ''
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+}; 
+
+// ========== 면접 분석 API ==========
+
+// 면접 업로드 + STT 한 번에
+export const uploadAndTranscribeInterview = async (file: File): Promise<{
+  status: 'success' | 'error';
+  upload_result?: UploadResponse;
+  transcribe_result?: any;
+  filename?: string;
+  transcription?: string;
+  message?: string;
+}> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_BASE_URL}/interview/upload-and-transcribe`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+// 빠른 면접 분석 (기존 STT 결과 활용)
+export const quickInterviewAnalysis = async (
+  sttResult: string,
+  jobPostingContent?: string,
+  resumeContent?: string
+): Promise<{
+  status: 'success' | 'error';
+  analysis?: string;
+  text_length?: number;
+  message?: string;
+}> => {
+  const response = await fetch(`${API_BASE_URL}/interview/quick-analysis`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      stt_result: sttResult,
+      job_posting_content: jobPostingContent || '',
+      resume_content: resumeContent || ''
+    }),
   });
 
   if (!response.ok) {

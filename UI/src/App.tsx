@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
+import ResultSidebar from './components/ResultSidebar';
+import { uploadAndTranscribeInterview } from './services/api';
 
 function App() {
   const [jobPostingFile, setJobPostingFile] = useState<File | undefined>();
@@ -14,10 +16,23 @@ function App() {
   // 문서 분석 결과 상태 추가
   const [documentAnalysisResult, setDocumentAnalysisResult] = useState<string | null>(null);
   const [documentAnalysisError, setDocumentAnalysisError] = useState<string | null>(null);
+  
+  // 2단계 통합 분석 결과 상태 추가
+  const [integratedAnalysisResult, setIntegratedAnalysisResult] = useState<string | null>(null);
+  const [integratedAnalysisError, setIntegratedAnalysisError] = useState<string | null>(null);
 
   // 기존 파일 선택 상태 추가
   const [selectedResumeFile, setSelectedResumeFile] = useState<string | null>(null);
   const [selectedJobFile, setSelectedJobFile] = useState<string | null>(null);
+
+  // 오른쪽 사이드바 상태 추가
+  const [isResultSidebarOpen, setIsResultSidebarOpen] = useState(false);
+
+  // 강제 리렌더링을 위한 상태 추가
+  const [forceUpdateCounter, setForceUpdateCounter] = useState(0);
+  
+  // 초기화 신호를 위한 상태 추가
+  const [clearSignal, setClearSignal] = useState(0);
 
   const handleJobPostingUpload = (file: File) => {
     setJobPostingFile(file);
@@ -31,8 +46,28 @@ function App() {
     setSelectedResumeFile(null);
   };
 
-  const handleInterviewUpload = (file: File) => {
+  const handleInterviewUpload = async (file: File) => {
     setInterviewFile(file);
+    
+    // 면접 녹음 파일 업로드 시 자동으로 STT 처리
+    try {
+      console.log('🎤 면접 녹음 파일 업로드 + STT 시작:', file.name);
+      setSttResult(''); // 기존 STT 결과 초기화
+      
+      const result = await uploadAndTranscribeInterview(file);
+      
+      if (result.status === 'success' && result.transcription) {
+        console.log('✅ STT 완료:', result.transcription.substring(0, 100) + '...');
+        setSttResult(result.transcription);
+      } else {
+        console.error('❌ STT 실패:', result.message);
+        // STT 실패해도 파일은 유지하되, 사용자에게 알림
+        alert(`STT 처리 실패: ${result.message}\n\n파일은 업로드되었지만 음성-텍스트 변환에 실패했습니다.`);
+      }
+    } catch (error) {
+      console.error('❌ STT 처리 중 오류:', error);
+      alert(`STT 처리 중 오류가 발생했습니다: ${error}\n\n파일은 업로드되었지만 음성-텍스트 변환에 실패했습니다.`);
+    }
   };
 
   const handleRemoveJobPosting = () => {
@@ -47,6 +82,29 @@ function App() {
 
   const handleRemoveInterview = () => {
     setInterviewFile(undefined);
+  };
+
+  // 전체 초기화 함수 (Sidebar에서 호출)
+  const handleResetAll = () => {
+    // 파일들 초기화
+    setJobPostingFile(undefined);
+    setResumeFile(undefined);
+    setInterviewFile(undefined);
+    setSelectedResumeFile(null);
+    setSelectedJobFile(null);
+    
+    // 분석 결과 초기화
+    setDocumentAnalysisResult(null);
+    setDocumentAnalysisError(null);
+    setIntegratedAnalysisResult(null);
+    setIntegratedAnalysisError(null);
+    setSttResult('');
+    setAnalysisResult('');
+    
+    // 로컬 상태 초기화 신호 발송
+    setClearSignal(prev => prev + 1);
+    
+    console.log('🔄 App - 전체 초기화 완료');
   };
 
   // 기존 파일 선택 핸들러 추가
@@ -70,10 +128,126 @@ function App() {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
+  // 오른쪽 사이드바 토글
+  const handleResultSidebarToggle = () => {
+    setIsResultSidebarOpen(!isResultSidebarOpen);
+  };
+
   // 문서 분석 결과 업데이트 함수
   const handleDocumentAnalysisUpdate = (result: string | null, error: string | null) => {
     setDocumentAnalysisResult(result);
     setDocumentAnalysisError(error);
+  };
+
+  // 통합 분석 결과 업데이트 함수
+  const handleIntegratedAnalysisUpdate = (result: string | null, error: string | null) => {
+    setIntegratedAnalysisResult(result);
+    setIntegratedAnalysisError(error);
+  };
+
+  // 분석 결과 저장 핸들러
+  const handleSaveResult = (data: any) => {
+    console.log('분석 결과 저장됨:', data);
+    // 필요하다면 추가 처리 로직
+  };
+
+  // 저장된 결과 불러오기 핸들러
+  const handleLoadResult = (result: any) => {
+    console.log('💾 저장된 결과 불러오기:', result);
+    console.log('📊 데이터 구조:', JSON.stringify(result, null, 2));
+    
+    // 결과 데이터를 현재 상태에 적용
+    if (result.results) {
+      console.log('📄 분석 결과 복원 중...');
+      
+      if (result.results.document_analysis && result.results.document_analysis.trim()) {
+        console.log('✅ 문서 분석 결과 복원:', result.results.document_analysis.substring(0, 100) + '...');
+        console.log('🔧 setDocumentAnalysisResult 호출 직전');
+        
+        // 강제로 상태 업데이트 (React 18 배칭 문제 해결)
+        setTimeout(() => {
+          setDocumentAnalysisResult(result.results.document_analysis);
+          setDocumentAnalysisError(null);
+          console.log('🔧 setDocumentAnalysisResult 호출 완료 (setTimeout)');
+          
+          // 강제 리렌더링 트리거
+          setForceUpdateCounter(prev => prev + 1);
+          console.log('🔄 강제 리렌더링 트리거');
+        }, 0);
+        
+      } else {
+        console.log('⚠️ 문서 분석 결과가 비어있음');
+      }
+      
+      if (result.results.interview_stt && result.results.interview_stt.trim()) {
+        console.log('✅ STT 결과 복원:', result.results.interview_stt.substring(0, 50) + '...');
+        setSttResult(result.results.interview_stt);
+      } else {
+        console.log('⚠️ STT 결과가 비어있음');
+      }
+      
+      if (result.results.integrated_analysis && result.results.integrated_analysis.trim()) {
+        console.log('✅ 통합 분석 결과 복원:', result.results.integrated_analysis.substring(0, 100) + '...');
+        setTimeout(() => {
+          setIntegratedAnalysisResult(result.results.integrated_analysis);
+          setIntegratedAnalysisError(null);
+          console.log('🔧 setIntegratedAnalysisResult 호출 완료 (setTimeout)');
+          
+          // 강제 리렌더링 트리거
+          setForceUpdateCounter(prev => prev + 1);
+          console.log('🔄 강제 리렌더링 트리거 (통합분석)');
+        }, 0);
+      } else {
+        console.log('⚠️ 통합 분석 결과가 비어있음');
+      }
+    } else {
+      console.log('❌ results 필드가 없습니다:', Object.keys(result));
+    }
+    
+    // 파일 정보도 업데이트 (파일명에서 prefix 제거)
+    if (result.metadata) {
+      console.log('📁 파일 정보 복원 중...');
+      
+      if (result.metadata.resume_file) {
+        // "resume_" prefix 제거
+        const cleanResumeFile = result.metadata.resume_file.replace('resume_', '');
+        console.log('✅ 이력서 파일 정보 복원:', result.metadata.resume_file, '→', cleanResumeFile);
+        setSelectedResumeFile(result.metadata.resume_file); // 전체 파일명 사용
+        setResumeFile(undefined);
+      }
+      
+      if (result.metadata.job_file) {
+        // "job_" prefix 제거
+        const cleanJobFile = result.metadata.job_file.replace('job_', '');
+        console.log('✅ 채용공고 파일 정보 복원:', result.metadata.job_file, '→', cleanJobFile);
+        setSelectedJobFile(result.metadata.job_file); // 전체 파일명 사용
+        setJobPostingFile(undefined);
+      }
+    } else {
+      console.log('❌ metadata 필드가 없습니다:', Object.keys(result));
+    }
+    
+    // 사이드바 닫기 (선택사항)
+    setIsResultSidebarOpen(false);
+    
+    // 현재 상태 확인
+    console.log('🔍 복원 후 상태 확인:');
+    console.log('  - documentAnalysisResult:', result.results?.document_analysis ? '✅ 있음' : '❌ 없음');
+    console.log('  - selectedResumeFile:', result.metadata?.resume_file || '❌ 없음');
+    console.log('  - selectedJobFile:', result.metadata?.job_file || '❌ 없음');
+    
+    console.log('🎉 결과 복원 완료!');
+    
+
+  };
+
+  // 현재 결과 정보 준비
+  const currentResults = {
+    documentAnalysis: documentAnalysisResult || undefined,
+    integratedAnalysis: integratedAnalysisResult || undefined,
+    sttResult: sttResult || undefined,
+    resumeFile: resumeFile?.name || selectedResumeFile || undefined,
+    jobFile: jobPostingFile?.name || selectedJobFile || undefined
   };
 
   const handleStartAnalysis = () => {
@@ -148,6 +322,10 @@ function App() {
         selectedJobFile={selectedJobFile}
         onSelectedResumeChange={handleSelectedResumeChange}
         onSelectedJobChange={handleSelectedJobChange}
+        onIntegratedAnalysisUpdate={handleIntegratedAnalysisUpdate}
+        sttResult={sttResult}
+        documentAnalysisResult={documentAnalysisResult}
+        onResetAll={handleResetAll}
       />
       <MainContent
         jobPostingFile={jobPostingFile}
@@ -160,6 +338,17 @@ function App() {
         documentAnalysisError={documentAnalysisError}
         selectedResumeFile={selectedResumeFile}
         selectedJobFile={selectedJobFile}
+        integratedAnalysisResult={integratedAnalysisResult}
+        integratedAnalysisError={integratedAnalysisError}
+        forceUpdateCounter={forceUpdateCounter}
+        clearSignal={clearSignal}
+      />
+      <ResultSidebar
+        isOpen={isResultSidebarOpen}
+        onToggle={handleResultSidebarToggle}
+        onSaveResult={handleSaveResult}
+        onLoadResult={handleLoadResult}
+        currentResults={currentResults}
       />
     </div>
   );

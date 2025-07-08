@@ -4,7 +4,7 @@ FastAPI 메인 애플리케이션
 import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import document_api
+from .routers import document_api, interview_api
 from .config import settings
 
 # 로깅 설정
@@ -33,7 +33,9 @@ app.add_middleware(
 )
 
 # 라우터 등록
-app.include_router(document_api.router)
+app.include_router(document_api.router, prefix="/api")
+app.include_router(interview_api.router, prefix="/api")
+app.include_router(interview_api.router, prefix="/api")
 
 
 @app.get("/")
