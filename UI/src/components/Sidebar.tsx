@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Send, FileText, User, Mic, ChevronLeft, ChevronRight, RefreshCw, BarChart3, List, X } from 'lucide-react';
 import FileUploader from './FileUploader';
-import { uploadAndAnalyze, uploadAndAnalyzeFast, uploadBothFiles, analyzeFiles, getFilesList, integratedAnalysis, uploadAndTranscribeInterview, quickInterviewAnalysis } from '../services/api';
+import { uploadAndAnalyze, uploadAndAnalyzeFast, uploadBothFiles, analyzeFiles, getFilesList, integratedAnalysis, uploadAndTranscribeInterview, quickInterviewAnalysis, getInterviewFiles } from '../services/api';
 import type { UploadAndAnalyzeResponse, AnalysisResponse, FilesListResponse, FileInfo } from '../services/api';
 
 interface SidebarProps {
@@ -21,8 +21,10 @@ interface SidebarProps {
   onDocumentAnalysisUpdate: (result: string | null, error: string | null) => void;
   selectedResumeFile: string | null;
   selectedJobFile: string | null;
+  selectedInterviewFile: string | null;
   onSelectedResumeChange: (filename: string | null) => void;
   onSelectedJobChange: (filename: string | null) => void;
+  onSelectedInterviewChange: (filename: string | null) => void;
   onIntegratedAnalysisUpdate: (result: string | null, error: string | null) => void;
   sttResult: string;
   documentAnalysisResult: string | null;
@@ -46,8 +48,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   onDocumentAnalysisUpdate,
   selectedResumeFile,
   selectedJobFile,
+  selectedInterviewFile,
   onSelectedResumeChange,
   onSelectedJobChange,
+  onSelectedInterviewChange,
   onIntegratedAnalysisUpdate,
   sttResult,
   documentAnalysisResult,
@@ -69,9 +73,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [availableFiles, setAvailableFiles] = useState<{
     resume_files: FileInfo[];
     job_files: FileInfo[];
+    interview_files: FileInfo[];
   }>({
     resume_files: [],
-    job_files: []
+    job_files: [],
+    interview_files: []
   });
 
   // 분석 모드 설정 토글 상태
@@ -80,6 +86,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const canStartAnalysis = jobPostingFile && resumeFile && interviewFile;
   const canAnalyzeDocuments = jobPostingFile && resumeFile;
   const canAnalyzeSelected = selectedResumeFile && selectedJobFile;
+  const canAnalyzeSelectedAll = selectedResumeFile && selectedJobFile && selectedInterviewFile;
   const canIntegratedAnalysis = (documentAnalysisResult || analysisResult) && sttResult;
 
   // 분석 결과가 변경될 때마다 부모 컴포넌트에게 알림
@@ -91,15 +98,21 @@ const Sidebar: React.FC<SidebarProps> = ({
   const loadFilesList = async () => {
     setIsLoadingFiles(true);
     try {
-      const result: FilesListResponse = await getFilesList();
-      if (result.status === 'success') {
+      // 문서 파일 목록 조회
+      const documentResult: FilesListResponse = await getFilesList();
+      
+      // 면접 파일 목록 조회
+      const interviewResult = await getInterviewFiles();
+      
+      if (documentResult.status === 'success') {
         setAvailableFiles({
-          resume_files: result.resume_files || [],
-          job_files: result.job_files || []
+          resume_files: documentResult.resume_files || [],
+          job_files: documentResult.job_files || [],
+          interview_files: interviewResult.status === 'success' ? (interviewResult.interview_files || []) : []
         });
         setShowFilesList(true);
       } else {
-        console.error('파일 목록 조회 실패:', result.message);
+        console.error('파일 목록 조회 실패:', documentResult.message);
       }
     } catch (error) {
       console.error('파일 목록 조회 오류:', error);
@@ -135,6 +148,73 @@ const Sidebar: React.FC<SidebarProps> = ({
     } catch (error) {
       console.error('선택한 파일들 분석 오류:', error);
       setAnalysisError(`선택한 파일들 분석 중 오류가 발생했습니다: ${error}`);
+    } finally {
+      setIsDocumentAnalyzing(false);
+    }
+  };
+
+  // 기존 파일들로 전체 분석 (문서 + 면접)
+  const handleAnalyzeSelectedAllFiles = async () => {
+    if (!selectedResumeFile || !selectedJobFile || !selectedInterviewFile) {
+      setAnalysisError('이력서, 채용공고, 면접 녹음 파일을 모두 선택해주세요.');
+      return;
+    }
+
+    setIsDocumentAnalyzing(true);
+    setAnalysisError(null);
+    setAnalysisResult(null);
+
+    try {
+      console.log('🚀 기존 파일들로 전체 분석 시작...');
+      
+      // 1단계: 문서 분석
+      console.log('📄 1단계: 문서 분석 중...');
+      const documentResult: AnalysisResponse = await analyzeFiles(
+        selectedResumeFile.replace('resume_', ''),
+        selectedJobFile.replace('job_', '')
+      );
+      
+      if (documentResult.status !== 'success' || !documentResult.analysis) {
+        setAnalysisError(documentResult.message || '문서 분석에 실패했습니다.');
+        return;
+      }
+
+      // 문서 분석 결과 업데이트
+      setAnalysisResult(documentResult.analysis);
+      onDocumentAnalysisUpdate(documentResult.analysis, null);
+
+      // 2단계: 면접 STT (기존 파일은 이미 텍스트로 변환되었다고 가정)
+      console.log('🎤 2단계: 면접 내용 분석 중...');
+      // TODO: 기존 면접 파일의 STT 결과 가져오기 또는 STT 처리
+      // 현재는 임시로 빈 문자열 사용
+      const mockSttResult = "면접 내용이 여기에 표시됩니다. (기존 파일 STT 기능 구현 필요)";
+      
+      // 면접 분석
+      const interviewAnalysisResult = await quickInterviewAnalysis(
+        mockSttResult,
+        selectedJobFile ? "채용공고 내용" : undefined,
+        selectedResumeFile ? "이력서 내용" : undefined
+      );
+      
+      // 3단계: 통합 분석
+      console.log('🎯 3단계: 통합 분석 중...');
+      const integratedResult = await integratedAnalysis(
+        documentResult.analysis,
+        mockSttResult,
+        selectedResumeFile,
+        selectedJobFile
+      );
+      
+      if (integratedResult.status === 'success' && integratedResult.integrated_analysis) {
+        onIntegratedAnalysisUpdate(integratedResult.integrated_analysis, null);
+        console.log('✅ 기존 파일들로 전체 분석 완료!');
+      } else {
+        console.log('⚠️ 통합 분석은 실패했지만 문서 분석은 완료됨');
+      }
+      
+    } catch (error) {
+      console.error('❌ 전체 분석 오류:', error);
+      setAnalysisError(`전체 분석 중 오류가 발생했습니다: ${error}`);
     } finally {
       setIsDocumentAnalyzing(false);
     }
@@ -358,21 +438,56 @@ const Sidebar: React.FC<SidebarProps> = ({
               </select>
             </div>
 
+            {/* 면접 녹음 파일 선택 */}
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-gray-600 mb-1">면접 녹음 파일</label>
+              <select
+                value={selectedInterviewFile || ''}
+                onChange={(e) => onSelectedInterviewChange(e.target.value || null)}
+                className="w-full text-sm border border-gray-300 rounded px-2 py-1"
+              >
+                <option value="">선택하세요</option>
+                {availableFiles.interview_files.map((file) => (
+                  <option key={file.name} value={file.name}>
+                    {file.display_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* 선택한 파일들로 분석 버튼 */}
-            <button
-              onClick={handleAnalyzeSelectedFiles}
-              disabled={!canAnalyzeSelected || isDocumentAnalyzing}
-              className={`w-full flex items-center justify-center space-x-2 py-2 px-3 rounded-lg font-medium text-sm transition-all
-                ${canAnalyzeSelected && !isDocumentAnalyzing
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span>
-                {isDocumentAnalyzing ? '분석 중...' : '선택한 파일들 분석'}
-              </span>
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={handleAnalyzeSelectedFiles}
+                disabled={!canAnalyzeSelected || isDocumentAnalyzing}
+                className={`w-full flex items-center justify-center space-x-2 py-2 px-3 rounded-lg font-medium text-sm transition-all
+                  ${canAnalyzeSelected && !isDocumentAnalyzing
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>
+                  {isDocumentAnalyzing ? '분석 중...' : '문서만 분석'}
+                </span>
+              </button>
+
+              {/* 전체 분석 버튼 (문서 + 면접) */}
+              <button
+                onClick={handleAnalyzeSelectedAllFiles}
+                disabled={!canAnalyzeSelectedAll || isDocumentAnalyzing}
+                className={`w-full flex items-center justify-center space-x-2 py-2 px-3 rounded-lg font-medium text-sm transition-all
+                  ${canAnalyzeSelectedAll && !isDocumentAnalyzing
+                    ? 'bg-purple-600 text-white hover:bg-purple-700'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
+              >
+                <Mic className="w-4 h-4" />
+                <span>
+                  {isDocumentAnalyzing ? '분석 중...' : '🎯 전체 분석 (문서+면접)'}
+                </span>
+              </button>
+            </div>
           </div>
         )}
 

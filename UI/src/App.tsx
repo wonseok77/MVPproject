@@ -12,6 +12,7 @@ function App() {
   const [analysisResult, setAnalysisResult] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSttProcessing, setIsSttProcessing] = useState(false);
 
   // 문서 분석 결과 상태 추가
   const [documentAnalysisResult, setDocumentAnalysisResult] = useState<string | null>(null);
@@ -24,6 +25,7 @@ function App() {
   // 기존 파일 선택 상태 추가
   const [selectedResumeFile, setSelectedResumeFile] = useState<string | null>(null);
   const [selectedJobFile, setSelectedJobFile] = useState<string | null>(null);
+  const [selectedInterviewFile, setSelectedInterviewFile] = useState<string | null>(null);
 
   // 오른쪽 사이드바 상태 추가
   const [isResultSidebarOpen, setIsResultSidebarOpen] = useState(false);
@@ -52,6 +54,7 @@ function App() {
     // 면접 녹음 파일 업로드 시 자동으로 STT 처리
     try {
       console.log('🎤 면접 녹음 파일 업로드 + STT 시작:', file.name);
+      setIsSttProcessing(true); // STT 처리 시작
       setSttResult(''); // 기존 STT 결과 초기화
       
       const result = await uploadAndTranscribeInterview(file);
@@ -67,6 +70,8 @@ function App() {
     } catch (error) {
       console.error('❌ STT 처리 중 오류:', error);
       alert(`STT 처리 중 오류가 발생했습니다: ${error}\n\n파일은 업로드되었지만 음성-텍스트 변환에 실패했습니다.`);
+    } finally {
+      setIsSttProcessing(false); // STT 처리 완료
     }
   };
 
@@ -82,6 +87,7 @@ function App() {
 
   const handleRemoveInterview = () => {
     setInterviewFile(undefined);
+    setSttResult(''); // STT 결과도 함께 초기화
   };
 
   // 전체 초기화 함수 (Sidebar에서 호출)
@@ -92,6 +98,7 @@ function App() {
     setInterviewFile(undefined);
     setSelectedResumeFile(null);
     setSelectedJobFile(null);
+    setSelectedInterviewFile(null);
     
     // 분석 결과 초기화
     setDocumentAnalysisResult(null);
@@ -121,6 +128,19 @@ function App() {
     // 기존 파일 선택 시 업로드된 파일 해제
     if (filename) {
       setJobPostingFile(undefined);
+    }
+  };
+
+  const handleSelectedInterviewChange = async (filename: string | null) => {
+    setSelectedInterviewFile(filename);
+    // 기존 파일 선택 시 업로드된 파일 해제
+    if (filename) {
+      setInterviewFile(undefined);
+      setSttResult(''); // 기존 STT 결과 초기화
+      
+      // 선택된 면접 파일로 STT 처리 (추후 구현 예정)
+      console.log('📁 기존 면접 파일 선택됨:', filename);
+      // TODO: 기존 면접 파일 STT 처리 로직 추가 필요
     }
   };
 
@@ -320,8 +340,10 @@ function App() {
         onDocumentAnalysisUpdate={handleDocumentAnalysisUpdate}
         selectedResumeFile={selectedResumeFile}
         selectedJobFile={selectedJobFile}
+        selectedInterviewFile={selectedInterviewFile}
         onSelectedResumeChange={handleSelectedResumeChange}
         onSelectedJobChange={handleSelectedJobChange}
+        onSelectedInterviewChange={handleSelectedInterviewChange}
         onIntegratedAnalysisUpdate={handleIntegratedAnalysisUpdate}
         sttResult={sttResult}
         documentAnalysisResult={documentAnalysisResult}
@@ -334,10 +356,12 @@ function App() {
         sttResult={sttResult}
         analysisResult={analysisResult}
         isAnalyzing={isAnalyzing}
+        isSttProcessing={isSttProcessing}
         documentAnalysisResult={documentAnalysisResult}
         documentAnalysisError={documentAnalysisError}
         selectedResumeFile={selectedResumeFile}
         selectedJobFile={selectedJobFile}
+        selectedInterviewFile={selectedInterviewFile}
         integratedAnalysisResult={integratedAnalysisResult}
         integratedAnalysisError={integratedAnalysisError}
         forceUpdateCounter={forceUpdateCounter}

@@ -9,10 +9,12 @@ interface MainContentProps {
   sttResult: string;
   analysisResult: string;
   isAnalyzing: boolean;
+  isSttProcessing: boolean;
   documentAnalysisResult: string | null;
   documentAnalysisError: string | null;
   selectedResumeFile: string | null;
   selectedJobFile: string | null;
+  selectedInterviewFile: string | null;
   integratedAnalysisResult: string | null;
   integratedAnalysisError: string | null;
   forceUpdateCounter: number;
@@ -26,10 +28,12 @@ const MainContent: React.FC<MainContentProps> = ({
   sttResult,
   analysisResult,
   isAnalyzing,
+  isSttProcessing,
   documentAnalysisResult,
   documentAnalysisError,
   selectedResumeFile,
   selectedJobFile,
+  selectedInterviewFile,
   integratedAnalysisResult,
   integratedAnalysisError,
   forceUpdateCounter,
@@ -188,6 +192,12 @@ const MainContent: React.FC<MainContentProps> = ({
                     <CheckCircle className="w-3 h-3 text-green-600" />
                     <span>{interviewFile.name}</span>
                   </span>
+                ) : selectedInterviewFile ? (
+                  <span className="flex items-center space-x-1">
+                    <CheckCircle className="w-3 h-3 text-blue-600" />
+                    <span>{selectedInterviewFile.replace('interview_', '')}</span>
+                    <span className="text-blue-600">(기존파일)</span>
+                  </span>
                 ) : (
                   '업로드 필요'
                 )}
@@ -237,9 +247,25 @@ const MainContent: React.FC<MainContentProps> = ({
 
       {/* STT Result */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">면접 STT 결과</h2>
+        <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center space-x-2">
+          <Mic className="w-6 h-6 text-purple-600" />
+          <span>면접 STT 결과</span>
+          {isSttProcessing && (
+            <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+              🎤 음성 변환 중...
+            </span>
+          )}
+        </h2>
         <div className="bg-gray-50 rounded-lg p-4 max-h-180 overflow-y-auto">
-          {sttResult ? (
+          {isSttProcessing ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-3"></div>
+                <p className="text-sm text-purple-600 font-medium">🎤 음성을 텍스트로 변환하고 있습니다...</p>
+                <p className="text-xs text-gray-500 mt-1">잠시만 기다려주세요 (약 10-30초)</p>
+              </div>
+            </div>
+          ) : sttResult ? (
             <div className="prose prose-sm max-w-none text-sm text-gray-700 leading-relaxed">
               <ReactMarkdown>
                 {sttResult}
@@ -247,7 +273,7 @@ const MainContent: React.FC<MainContentProps> = ({
             </div>
           ) : (
             <p className="text-sm text-gray-500 italic">
-              {isAnalyzing ? '음성을 텍스트로 변환 중...' : '면접 녹음 파일을 업로드하고 분석을 시작하세요'}
+              {isAnalyzing ? '음성을 텍스트로 변환 중...' : '면접 녹음 파일을 업로드하면 자동으로 STT 처리됩니다'}
             </p>
           )}
         </div>

@@ -298,3 +298,24 @@ export const quickInterviewAnalysis = async (
 
   return await response.json();
 }; 
+
+// 면접 녹음 파일 목록 조회
+export const getInterviewFiles = async (): Promise<{
+  status: 'success' | 'error';
+  interview_files?: FileInfo[];
+  total_files?: number;
+  message?: string;
+}> => {
+  const response = await fetch(`${API_BASE_URL}/interview/audio-files`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+}; 
