@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { FileText, MessageSquare, Send, User, Mic, CheckCircle } from 'lucide-react';
+import { FileText, MessageSquare, Send, User, Mic, CheckCircle, BarChart3 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface MainContentProps {
   jobPostingFile?: File;
@@ -8,6 +9,10 @@ interface MainContentProps {
   sttResult: string;
   analysisResult: string;
   isAnalyzing: boolean;
+  documentAnalysisResult: string | null;
+  documentAnalysisError: string | null;
+  selectedResumeFile: string | null;
+  selectedJobFile: string | null;
 }
 
 const MainContent: React.FC<MainContentProps> = ({
@@ -16,7 +21,11 @@ const MainContent: React.FC<MainContentProps> = ({
   interviewFile,
   sttResult,
   analysisResult,
-  isAnalyzing
+  isAnalyzing,
+  documentAnalysisResult,
+  documentAnalysisError,
+  selectedResumeFile,
+  selectedJobFile
 }) => {
   const [prompt, setPrompt] = useState('');
   const [chatMessages, setChatMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
@@ -60,7 +69,7 @@ const MainContent: React.FC<MainContentProps> = ({
   };
 
   return (
-    <div className="flex-1 p-8 bg-gray-50 overflow-y-auto">
+    <div className="flex-1 p-8 bg-gray-50 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">
@@ -85,6 +94,12 @@ const MainContent: React.FC<MainContentProps> = ({
                     <CheckCircle className="w-3 h-3 text-green-600" />
                     <span>{jobPostingFile.name}</span>
                   </span>
+                ) : selectedJobFile ? (
+                  <span className="flex items-center space-x-1">
+                    <CheckCircle className="w-3 h-3 text-blue-600" />
+                    <span>{selectedJobFile.replace('job_', '')}</span>
+                    <span className="text-blue-600">(기존파일)</span>
+                  </span>
                 ) : (
                   '업로드 필요'
                 )}
@@ -101,6 +116,12 @@ const MainContent: React.FC<MainContentProps> = ({
                   <span className="flex items-center space-x-1">
                     <CheckCircle className="w-3 h-3 text-green-600" />
                     <span>{resumeFile.name}</span>
+                  </span>
+                ) : selectedResumeFile ? (
+                  <span className="flex items-center space-x-1">
+                    <CheckCircle className="w-3 h-3 text-blue-600" />
+                    <span>{selectedResumeFile.replace('resume_', '')}</span>
+                    <span className="text-blue-600">(기존파일)</span>
                   </span>
                 ) : (
                   '업로드 필요'
@@ -128,12 +149,46 @@ const MainContent: React.FC<MainContentProps> = ({
         </div>
       </div>
 
+      {/* Document Analysis Result */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center space-x-2">
+          <BarChart3 className="w-6 h-6 text-blue-600" />
+          <span>문서 분석 결과</span>
+        </h2>
+        <div className="bg-gray-50 rounded-lg p-4 max-h-180 overflow-y-auto">
+          {documentAnalysisError ? (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700">❌ {documentAnalysisError}</p>
+            </div>
+          ) : documentAnalysisResult ? (
+            <div className="prose prose-sm max-w-none text-sm text-gray-700 leading-relaxed">
+              <ReactMarkdown>
+                {documentAnalysisResult}
+              </ReactMarkdown>
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-sm text-gray-500 italic">
+                채용공고와 이력서를 업로드한 후 사이드바에서 "문서 분석" 버튼을 클릭하면 결과가 여기에 표시됩니다
+              </p>
+              <div className="mt-2 text-xs text-gray-400">
+                💡 기존 파일을 사용하려면 "기존 파일 목록 보기"를 클릭하세요
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* STT Result */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">면접 STT 결과</h2>
-        <div className="bg-gray-50 rounded-lg p-4 max-h-40 overflow-y-auto">
+        <div className="bg-gray-50 rounded-lg p-4 max-h-180 overflow-y-auto">
           {sttResult ? (
-            <p className="text-sm text-gray-700 leading-relaxed">{sttResult}</p>
+            <div className="prose prose-sm max-w-none text-sm text-gray-700 leading-relaxed">
+              <ReactMarkdown>
+                {sttResult}
+              </ReactMarkdown>
+            </div>
           ) : (
             <p className="text-sm text-gray-500 italic">
               {isAnalyzing ? '음성을 텍스트로 변환 중...' : '면접 녹음 파일을 업로드하고 분석을 시작하세요'}
@@ -145,12 +200,12 @@ const MainContent: React.FC<MainContentProps> = ({
       {/* Analysis Result */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">분석 결과 요약</h2>
-        <div className="bg-gray-50 rounded-lg p-4 max-h-60 overflow-y-auto">
+        <div className="bg-gray-50 rounded-lg p-4 max-h-180 overflow-y-auto">
           {analysisResult ? (
-            <div className="prose prose-sm max-w-none">
-              <pre className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap font-sans">
+            <div className="prose prose-sm max-w-none text-sm text-gray-700 leading-relaxed">
+              <ReactMarkdown>
                 {analysisResult}
-              </pre>
+              </ReactMarkdown>
             </div>
           ) : (
             <p className="text-sm text-gray-500 italic">
@@ -187,7 +242,7 @@ const MainContent: React.FC<MainContentProps> = ({
           
           {/* Chat Messages */}
           {chatMessages.length > 0 && (
-            <div className="space-y-4 max-h-80 overflow-y-auto">
+            <div className="space-y-4 max-h-100 overflow-y-auto">
               {chatMessages.map((message, index) => (
                 <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-3xl p-3 rounded-lg ${
@@ -196,8 +251,10 @@ const MainContent: React.FC<MainContentProps> = ({
                       : 'bg-gray-100 text-gray-800'
                   }`}>
                     {message.role === 'assistant' ? (
-                      <div className="prose prose-sm max-w-none">
-                        <pre className="whitespace-pre-wrap font-sans text-sm">{message.content}</pre>
+                      <div className="prose prose-sm max-w-none text-sm">
+                        <ReactMarkdown>
+                          {message.content}
+                        </ReactMarkdown>
                       </div>
                     ) : (
                       <p className="text-sm">{message.content}</p>

@@ -20,6 +20,19 @@ export interface UploadAndAnalyzeResponse {
     resume_upload: UploadResponse;
     job_upload: UploadResponse;
   };
+  indexer_result?: {
+    status: string;
+    message?: string;
+  };
+  index_info?: {
+    old_index: string;
+    new_index: string;
+    index_changed: boolean;
+  };
+  indexing_status?: {
+    resume_indexed: boolean;
+    job_indexed: boolean;
+  };
   analysis_result?: AnalysisResponse;
   message?: string;
 }
@@ -117,7 +130,28 @@ export const analyzeFiles = async (
   return await response.json();
 };
 
-// 업로드 + 분석 한 번에
+// 업로드 + 분석 한 번에 (고속 모드)
+export const uploadAndAnalyzeFast = async (
+  resumeFile: File, 
+  jobFile: File
+): Promise<UploadAndAnalyzeResponse> => {
+  const formData = new FormData();
+  formData.append('resume_file', resumeFile);
+  formData.append('job_file', jobFile);
+
+  const response = await fetch(`${API_BASE_URL}/document/upload-and-analyze-fast`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
+};
+
+// 업로드 + 분석 한 번에 (일반 모드)
 export const uploadAndAnalyze = async (
   resumeFile: File, 
   jobFile: File

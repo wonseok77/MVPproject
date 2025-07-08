@@ -131,52 +131,149 @@ class DocumentAnalyzer:
             
             print(f"🔍 이력서 파일 검색: {filename}")
             
-            # 먼저 모든 문서를 검색해서 어떤 파일들이 있는지 확인
-            all_results = self.search_client.search(
-                search_text="*",
-                top=10,
-                select=["metadata_storage_name", "content", "chunk"]
-            )
+            # 인덱스 스키마 확인
+            schema_info = self.get_index_schema()
+            if schema_info["status"] == "error":
+                return f"인덱스 스키마 조회 실패: {schema_info['message']}"
             
-            print("📋 AI Search에서 찾은 파일들:")
-            for result in all_results:
-                storage_name = result.get("metadata_storage_name", "")
-                print(f"  - {storage_name}")
+            available_fields = schema_info["fields"]
+            print(f"📋 사용 가능한 필드들: {available_fields}")
             
-            # 정확한 파일명으로 검색
-            results = self.search_client.search(
-                search_text=f"metadata_storage_name:{filename}",
-                top=1,
-                select=["content", "chunk", "metadata_storage_name"]
-            )
+            # 사용할 필드들 결정
+            content_fields = []
+            filename_field = None
             
-            results_list = list(results)
-            print(f"🔍 '{filename}' 검색 결과: {len(results_list)}개")
+            # 파일명을 위한 필드 찾기
+            for field in ["title", "metadata_storage_name", "metadata_storage_path", "filename", "name"]:
+                if field in available_fields:
+                    filename_field = field
+                    print(f"✅ 파일명 필드로 '{field}' 사용")
+                    break
             
-            for result in results_list:
-                content = result.get("content", "") or result.get("chunk", "")
-                storage_name = result.get("metadata_storage_name", "")
-                print(f"  - 파일: {storage_name}, 내용 길이: {len(content)}자")
-                if content:
-                    return content
+            # 컨텐츠를 위한 필드들 찾기
+            for field in ["chunk", "content", "text", "body"]:
+                if field in available_fields:
+                    content_fields.append(field)
             
-            # 파일명 부분 매칭으로 재시도
-            print(f"🔍 부분 매칭으로 재시도: {filename}")
-            results = self.search_client.search(
-                search_text=filename,
-                top=5,
-                select=["content", "chunk", "metadata_storage_name"]
-            )
+            print(f"✅ 컨텐츠 필드들: {content_fields}")
             
-            for result in results:
-                storage_name = result.get("metadata_storage_name", "")
-                if filename in storage_name:
-                    content = result.get("content", "") or result.get("chunk", "")
-                    print(f"  ✅ 부분 매칭 성공: {storage_name}")
-                    if content:
+            if not filename_field:
+                print("⚠️ 파일명 필드를 찾을 수 없어서 전체 검색으로 진행합니다")
+                # 전체 검색으로 진행
+                all_results = self.search_client.search(
+                    search_text="*",
+                    top=10,
+                    select=content_fields
+                )
+                
+                print("📋 AI Search에서 찾은 문서들:")
+                doc_count = 0
+                for result in all_results:
+                    doc_count += 1
+                    content = ""
+                    for field in content_fields:
+                        field_content = result.get(field, "")
+                        if field_content and len(field_content) > len(content):
+                            content = field_content
+                    print(f"  - 문서 {doc_count}: 내용 길이 {len(content)}자")
+                    if filename.lower() in content.lower() and len(content) > 100:
+                        print(f"  ✅ 파일명이 포함된 문서 발견!")
                         return content
+                
+                return f"이력서 파일 '{filename}'을 찾을 수 없습니다"
             
-            return f"이력서 파일 '{filename}'을 찾을 수 없습니다. (AI Search 인덱싱 대기 중일 수 있습니다)"
+            # 파일명 필드가 있는 경우 정확한 검색
+            select_fields = [filename_field] + content_fields
+            
+            # 먼저 모든 문서를 검색해서 어떤 파일들이 있는지 확인
+            try:
+                all_results = self.search_client.search(
+                    search_text="*",
+                    top=10,
+                    select=select_fields
+                )
+                
+                print("📋 AI Search에서 찾은 파일들:")
+                for result in all_results:
+                    storage_name = result.get(filename_field, "")
+                    print(f"  - {storage_name}")
+            except Exception as e:
+                print(f"⚠️ 전체 문서 조회 오류: {str(e)}")
+            
+            # 다양한 검색 방식으로 시도
+            search_queries = [
+                f'"{filename}"',  # 정확한 매칭
+                filename,         # 일반 검색
+                filename.replace("resume_", "").replace("job_", ""),  # prefix 제거
+                f"{filename_field}:{filename}",  # 필드 특정 검색
+            ]
+            
+            for i, search_query in enumerate(search_queries):
+                try:
+                    print(f"🔍 검색 시도 {i+1}: '{search_query}'")
+                    results = self.search_client.search(
+                        search_text=search_query,
+                        top=5,
+                        select=select_fields
+                    )
+                    
+                    results_list = list(results)
+                    print(f"   → {len(results_list)}개 결과")
+                    
+                    for result in results_list:
+                        storage_name = result.get(filename_field, "")
+                        content = ""
+                        for field in content_fields:
+                            field_content = result.get(field, "")
+                            if field_content and len(field_content) > len(content):
+                                content = field_content
+                        
+                        print(f"  - 파일: {storage_name}")
+                        print(f"    내용 길이: {len(content)}자")
+                        
+                        # 파일명 매칭 조건들
+                        original_filename = filename.replace("resume_", "").replace("job_", "")
+                        match_conditions = [
+                            filename in storage_name,
+                            storage_name in filename,
+                            original_filename in storage_name,
+                            any(word in storage_name for word in original_filename.split("_") if len(word) > 2)
+                        ]
+                        
+                        if any(match_conditions) and content and len(content) > 50:
+                            print(f"  ✅ 매칭 성공: {storage_name}")
+                            return content
+                            
+                except Exception as e:
+                    print(f"⚠️ 검색 시도 {i+1} 오류: {str(e)}")
+            
+            # 모든 문서를 검색해서 사용 가능한 파일 목록 표시
+            print("📋 현재 인덱스에 있는 모든 파일:")
+            try:
+                all_results = self.search_client.search(
+                    search_text="*",
+                    top=10,
+                    select=select_fields
+                )
+                
+                available_files = []
+                for result in all_results:
+                    storage_name = result.get(filename_field, "")
+                    if storage_name:
+                        available_files.append(storage_name)
+                        print(f"  - {storage_name}")
+                
+                if available_files:
+                    suggestion_msg = f"\n💡 '{filename}' 파일을 찾을 수 없습니다.\n"
+                    suggestion_msg += f"현재 사용 가능한 파일: {', '.join(available_files)}\n"
+                    suggestion_msg += f"파일을 다시 업로드하거나 올바른 파일명을 확인해주세요."
+                    return suggestion_msg
+                else:
+                    return f"인덱스에 문서가 없습니다. 파일을 업로드해주세요."
+                        
+            except Exception as e:
+                print(f"⚠️ 전체 파일 목록 조회 오류: {str(e)}")
+                return f"이력서 파일 '{filename}'을 찾을 수 없습니다. (AI Search 인덱싱 대기 중일 수 있습니다)"
         except Exception as e:
             print(f"❌ 이력서 파일 읽기 오류: {str(e)}")
             return f"이력서 파일 읽기 오류: {str(e)}"
@@ -190,38 +287,100 @@ class DocumentAnalyzer:
             
             print(f"🔍 채용공고 파일 검색: {filename}")
             
+            # 인덱스 스키마 확인 (캐시된 결과 사용 가능)
+            schema_info = self.get_index_schema()
+            if schema_info["status"] == "error":
+                return f"인덱스 스키마 조회 실패: {schema_info['message']}"
+            
+            available_fields = schema_info["fields"]
+            
+            # 사용할 필드들 결정
+            content_fields = []
+            filename_field = None
+            
+            # 파일명을 위한 필드 찾기
+            for field in ["metadata_storage_name", "metadata_storage_path", "filename", "name", "title"]:
+                if field in available_fields:
+                    filename_field = field
+                    break
+            
+            # 컨텐츠를 위한 필드들 찾기
+            for field in ["content", "chunk", "text", "body"]:
+                if field in available_fields:
+                    content_fields.append(field)
+            
+            if not filename_field:
+                print("⚠️ 파일명 필드를 찾을 수 없어서 전체 검색으로 진행합니다")
+                # 전체 검색으로 진행
+                all_results = self.search_client.search(
+                    search_text="*",
+                    top=10,
+                    select=content_fields
+                )
+                
+                for result in all_results:
+                    content = ""
+                    for field in content_fields:
+                        field_content = result.get(field, "")
+                        if field_content and len(field_content) > len(content):
+                            content = field_content
+                    if filename.lower() in content.lower() and len(content) > 100:
+                        print(f"  ✅ 파일명이 포함된 문서 발견!")
+                        return content
+                
+                return f"채용공고 파일 '{filename}'을 찾을 수 없습니다"
+            
+            # 파일명 필드가 있는 경우 정확한 검색
+            select_fields = [filename_field] + content_fields
+            
             # 정확한 파일명으로 검색
-            results = self.search_client.search(
-                search_text=f"metadata_storage_name:{filename}",
-                top=1,
-                select=["content", "chunk", "metadata_storage_name"]
-            )
-            
-            results_list = list(results)
-            print(f"🔍 '{filename}' 검색 결과: {len(results_list)}개")
-            
-            for result in results_list:
-                content = result.get("content", "") or result.get("chunk", "")
-                storage_name = result.get("metadata_storage_name", "")
-                print(f"  - 파일: {storage_name}, 내용 길이: {len(content)}자")
-                if content:
-                    return content
+            try:
+                results = self.search_client.search(
+                    search_text=f"{filename_field}:{filename}",
+                    top=1,
+                    select=select_fields
+                )
+                
+                results_list = list(results)
+                print(f"🔍 '{filename}' 검색 결과: {len(results_list)}개")
+                
+                for result in results_list:
+                    storage_name = result.get(filename_field, "")
+                    content = ""
+                    for field in content_fields:
+                        field_content = result.get(field, "")
+                        if field_content and len(field_content) > len(content):
+                            content = field_content
+                    
+                    print(f"  - 파일: {storage_name}, 내용 길이: {len(content)}자")
+                    if content:
+                        return content
+            except Exception as e:
+                print(f"⚠️ 정확한 파일명 검색 오류: {str(e)}")
             
             # 파일명 부분 매칭으로 재시도
             print(f"🔍 부분 매칭으로 재시도: {filename}")
-            results = self.search_client.search(
-                search_text=filename,
-                top=5,
-                select=["content", "chunk", "metadata_storage_name"]
-            )
-            
-            for result in results:
-                storage_name = result.get("metadata_storage_name", "")
-                if filename in storage_name:
-                    content = result.get("content", "") or result.get("chunk", "")
-                    print(f"  ✅ 부분 매칭 성공: {storage_name}")
-                    if content:
-                        return content
+            try:
+                results = self.search_client.search(
+                    search_text=filename,
+                    top=5,
+                    select=select_fields
+                )
+                
+                for result in results:
+                    storage_name = result.get(filename_field, "")
+                    if filename in storage_name:
+                        content = ""
+                        for field in content_fields:
+                            field_content = result.get(field, "")
+                            if field_content and len(field_content) > len(content):
+                                content = field_content
+                        
+                        print(f"  ✅ 부분 매칭 성공: {storage_name}")
+                        if content:
+                            return content
+            except Exception as e:
+                print(f"⚠️ 부분 매칭 검색 오류: {str(e)}")
             
             return f"채용공고 파일 '{filename}'을 찾을 수 없습니다. (AI Search 인덱싱 대기 중일 수 있습니다)"
         except Exception as e:
@@ -230,24 +389,89 @@ class DocumentAnalyzer:
     
     def wait_for_indexing(self, filename: str, max_wait_time: int = 30) -> bool:
         """AI Search 인덱싱 완료 대기"""
-        for _ in range(max_wait_time):
-            try:
-                results = self.search_client.search(
-                    search_text=f"metadata_storage_name:{filename}",
-                    top=1,
-                    select=["content", "chunk"]
-                )
-                
-                for result in results:
-                    content = result.get("content", "") or result.get("chunk", "")
-                    if content:
-                        return True
-                
-                time.sleep(1)  # 1초 대기
-            except:
-                time.sleep(1)
-        
-        return False
+        try:
+            # 인덱스 스키마 확인
+            schema_info = self.get_index_schema()
+            if schema_info["status"] == "error":
+                print(f"⚠️ 스키마 조회 실패, 기본 방식으로 대기: {schema_info['message']}")
+                # 기본 방식으로 대기
+                for _ in range(max_wait_time):
+                    try:
+                        results = self.search_client.search(
+                            search_text=filename,
+                            top=1
+                        )
+                        for result in results:
+                            return True
+                        time.sleep(1)
+                    except:
+                        time.sleep(1)
+                return False
+            
+            available_fields = schema_info["fields"]
+            
+            # 파일명 필드와 컨텐츠 필드 찾기
+            filename_field = None
+            content_fields = []
+            
+            for field in ["metadata_storage_name", "metadata_storage_path", "filename", "name", "title"]:
+                if field in available_fields:
+                    filename_field = field
+                    break
+            
+            for field in ["content", "chunk", "text", "body"]:
+                if field in available_fields:
+                    content_fields.append(field)
+            
+            if not filename_field or not content_fields:
+                print(f"⚠️ 필요한 필드를 찾을 수 없어서 기본 검색으로 대기")
+                # 기본 방식으로 대기
+                for _ in range(max_wait_time):
+                    try:
+                        results = self.search_client.search(
+                            search_text=filename,
+                            top=1
+                        )
+                        for result in results:
+                            return True
+                        time.sleep(1)
+                    except:
+                        time.sleep(1)
+                return False
+            
+            select_fields = [filename_field] + content_fields
+            
+            for i in range(max_wait_time):
+                try:
+                    results = self.search_client.search(
+                        search_text=f"{filename_field}:{filename}",
+                        top=1,
+                        select=select_fields
+                    )
+                    
+                    for result in results:
+                        # 컨텐츠가 있는지 확인
+                        content = ""
+                        for field in content_fields:
+                            field_content = result.get(field, "")
+                            if field_content and len(field_content) > len(content):
+                                content = field_content
+                        
+                        if content:
+                            print(f"✅ 파일 '{filename}' 인덱싱 완료 (대기 시간: {i+1}초)")
+                            return True
+                    
+                    time.sleep(1)  # 1초 대기
+                except Exception as e:
+                    print(f"⚠️ 인덱싱 대기 중 오류 ({i+1}/{max_wait_time}): {str(e)}")
+                    time.sleep(1)
+            
+            print(f"❌ 파일 '{filename}' 인덱싱 대기 시간 초과 ({max_wait_time}초)")
+            return False
+            
+        except Exception as e:
+            print(f"❌ 인덱싱 대기 함수 오류: {str(e)}")
+            return False
     
     def analyze_match(self, resume_content: str, job_content: str) -> dict:
         """이력서-채용공고 매칭 분석"""
@@ -328,6 +552,38 @@ class DocumentAnalyzer:
                 "message": f"분석 중 오류 발생: {str(e)}"
             }
 
+    def get_index_schema(self) -> dict:
+        """Azure AI Search 인덱스 스키마 조회"""
+        try:
+            from azure.search.documents.indexes import SearchIndexClient
+            
+            index_client = SearchIndexClient(
+                endpoint=self.search_endpoint,
+                credential=self.search_credential
+            )
+            
+            # 현재 인덱스 정보 조회
+            index = index_client.get_index(self.index_name)
+            
+            print(f"📋 인덱스 '{self.index_name}' 스키마:")
+            field_names = []
+            for field in index.fields:
+                print(f"  - {field.name} ({field.type})")
+                field_names.append(field.name)
+            
+            return {
+                "status": "success",
+                "index_name": self.index_name,
+                "fields": field_names
+            }
+            
+        except Exception as e:
+            print(f"❌ 인덱스 스키마 조회 오류: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"인덱스 스키마 조회 오류: {str(e)}"
+            }
+
     def get_blob_files_list(self) -> dict:
         """Azure Blob Storage에서 파일 목록 조회"""
         try:
@@ -377,6 +633,190 @@ class DocumentAnalyzer:
             return {
                 "status": "error",
                 "message": f"파일 목록 조회 중 오류 발생: {str(e)}"
+            }
+
+    def debug_search_index(self) -> dict:
+        """Azure AI Search 인덱스의 모든 문서와 스키마 정보를 디버깅용으로 조회"""
+        try:
+            print(f"🔍 인덱스 '{self.index_name}' 디버깅 시작...")
+            
+            # 1. 스키마 정보 조회
+            schema_info = self.get_index_schema()
+            if schema_info["status"] == "error":
+                return schema_info
+            
+            print(f"📋 사용 가능한 필드들: {schema_info['fields']}")
+            
+            # 2. 모든 문서 조회 (필드 제한 없이)
+            try:
+                print("📋 모든 문서 조회 중...")
+                all_results = self.search_client.search(
+                    search_text="*",
+                    top=20,  # 최대 20개 문서
+                    include_total_count=True
+                )
+                
+                documents = []
+                count = 0
+                for result in all_results:
+                    count += 1
+                    doc_info = {}
+                    print(f"\n📄 문서 {count}:")
+                    
+                    # 각 필드의 실제 값 출력
+                    for field_name in schema_info['fields']:
+                        field_value = result.get(field_name, None)
+                        if field_value:
+                            if isinstance(field_value, str) and len(field_value) > 100:
+                                # 긴 텍스트는 앞부분만 표시
+                                display_value = field_value[:100] + "..."
+                            else:
+                                display_value = field_value
+                            print(f"  - {field_name}: {display_value}")
+                            doc_info[field_name] = field_value
+                    
+                    documents.append(doc_info)
+                
+                print(f"\n✅ 총 {count}개 문서 조회 완료")
+                
+                return {
+                    "status": "success",
+                    "schema": schema_info,
+                    "documents": documents,
+                    "total_count": count
+                }
+                
+            except Exception as e:
+                print(f"❌ 문서 조회 오류: {str(e)}")
+                return {
+                    "status": "error",
+                    "message": f"문서 조회 오류: {str(e)}",
+                    "schema": schema_info
+                }
+                
+        except Exception as e:
+            print(f"❌ 디버깅 함수 오류: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"디버깅 함수 오류: {str(e)}"
+            }
+
+    def run_indexer(self) -> dict:
+        """Azure AI Search 인덱서를 수동으로 실행하여 Blob Storage의 새 파일들을 인덱싱"""
+        try:
+            from azure.search.documents.indexes import SearchIndexerClient
+            
+            indexer_client = SearchIndexerClient(
+                endpoint=self.search_endpoint,
+                credential=self.search_credential
+            )
+            
+            # 모든 인덱서 목록 조회
+            indexers = list(indexer_client.get_indexers())
+            print(f"📋 사용 가능한 인덱서들:")
+            
+            if not indexers:
+                return {
+                    "status": "error",
+                    "message": "사용 가능한 인덱서가 없습니다."
+                }
+            
+            results = []
+            for indexer in indexers:
+                print(f"  - {indexer.name}")
+                
+                try:
+                    # 인덱서 상태 확인
+                    status = indexer_client.get_indexer_status(indexer.name)
+                    print(f"    현재 상태: {status.status}")
+                    print(f"    마지막 실행: {status.last_result.end_time if status.last_result else 'N/A'}")
+                    
+                    # 인덱서 실행
+                    print(f"🚀 인덱서 '{indexer.name}' 실행 중...")
+                    indexer_client.run_indexer(indexer.name)
+                    
+                    results.append({
+                        "indexer_name": indexer.name,
+                        "status": "started",
+                        "message": f"인덱서 '{indexer.name}' 실행 시작됨"
+                    })
+                    
+                except Exception as e:
+                    error_msg = f"인덱서 '{indexer.name}' 실행 오류: {str(e)}"
+                    print(f"❌ {error_msg}")
+                    results.append({
+                        "indexer_name": indexer.name,
+                        "status": "error",
+                        "message": error_msg
+                    })
+            
+            return {
+                "status": "success",
+                "message": f"{len(indexers)}개 인덱서 실행 시도 완료",
+                "indexers": results
+            }
+            
+        except Exception as e:
+            error_msg = f"인덱서 실행 중 오류: {str(e)}"
+            print(f"❌ {error_msg}")
+            return {
+                "status": "error", 
+                "message": error_msg
+            }
+
+    def check_indexer_status(self) -> dict:
+        """모든 인덱서의 상태를 확인"""
+        try:
+            from azure.search.documents.indexes import SearchIndexerClient
+            
+            indexer_client = SearchIndexerClient(
+                endpoint=self.search_endpoint,
+                credential=self.search_credential
+            )
+            
+            indexers = list(indexer_client.get_indexers())
+            if not indexers:
+                return {
+                    "status": "error",
+                    "message": "사용 가능한 인덱서가 없습니다."
+                }
+            
+            indexer_statuses = []
+            for indexer in indexers:
+                try:
+                    status = indexer_client.get_indexer_status(indexer.name)
+                    
+                    indexer_info = {
+                        "name": indexer.name,
+                        "status": status.status.value if status.status else "unknown",
+                        "last_execution": status.last_result.end_time.isoformat() if status.last_result and status.last_result.end_time else None,
+                        "execution_status": status.last_result.status.value if status.last_result and status.last_result.status else "unknown",
+                        "items_processed": status.last_result.item_count if status.last_result else 0,
+                        "errors": len(status.last_result.errors) if status.last_result and status.last_result.errors else 0
+                    }
+                    
+                    indexer_statuses.append(indexer_info)
+                    
+                    print(f"📊 인덱서 '{indexer.name}':")
+                    print(f"  - 상태: {indexer_info['status']}")
+                    print(f"  - 마지막 실행: {indexer_info['last_execution']}")
+                    print(f"  - 처리된 항목: {indexer_info['items_processed']}")
+                    print(f"  - 오류 수: {indexer_info['errors']}")
+                    
+                except Exception as e:
+                    print(f"❌ 인덱서 '{indexer.name}' 상태 조회 오류: {str(e)}")
+            
+            return {
+                "status": "success",
+                "indexers": indexer_statuses
+            }
+            
+        except Exception as e:
+            error_msg = f"인덱서 상태 확인 중 오류: {str(e)}"
+            print(f"❌ {error_msg}")
+            return {
+                "status": "error",
+                "message": error_msg
             }
 
 # 전역 인스턴스 생성

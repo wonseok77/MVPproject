@@ -11,12 +11,24 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // 문서 분석 결과 상태 추가
+  const [documentAnalysisResult, setDocumentAnalysisResult] = useState<string | null>(null);
+  const [documentAnalysisError, setDocumentAnalysisError] = useState<string | null>(null);
+
+  // 기존 파일 선택 상태 추가
+  const [selectedResumeFile, setSelectedResumeFile] = useState<string | null>(null);
+  const [selectedJobFile, setSelectedJobFile] = useState<string | null>(null);
+
   const handleJobPostingUpload = (file: File) => {
     setJobPostingFile(file);
+    // 새 파일 업로드 시 기존 파일 선택 해제
+    setSelectedJobFile(null);
   };
 
   const handleResumeUpload = (file: File) => {
     setResumeFile(file);
+    // 새 파일 업로드 시 기존 파일 선택 해제
+    setSelectedResumeFile(null);
   };
 
   const handleInterviewUpload = (file: File) => {
@@ -25,18 +37,43 @@ function App() {
 
   const handleRemoveJobPosting = () => {
     setJobPostingFile(undefined);
+    setSelectedJobFile(null);
   };
 
   const handleRemoveResume = () => {
     setResumeFile(undefined);
+    setSelectedResumeFile(null);
   };
 
   const handleRemoveInterview = () => {
     setInterviewFile(undefined);
   };
 
+  // 기존 파일 선택 핸들러 추가
+  const handleSelectedResumeChange = (filename: string | null) => {
+    setSelectedResumeFile(filename);
+    // 기존 파일 선택 시 업로드된 파일 해제
+    if (filename) {
+      setResumeFile(undefined);
+    }
+  };
+
+  const handleSelectedJobChange = (filename: string | null) => {
+    setSelectedJobFile(filename);
+    // 기존 파일 선택 시 업로드된 파일 해제
+    if (filename) {
+      setJobPostingFile(undefined);
+    }
+  };
+
   const handleSidebarToggle = () => {
     setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  // 문서 분석 결과 업데이트 함수
+  const handleDocumentAnalysisUpdate = (result: string | null, error: string | null) => {
+    setDocumentAnalysisResult(result);
+    setDocumentAnalysisError(error);
   };
 
   const handleStartAnalysis = () => {
@@ -106,6 +143,11 @@ function App() {
         isAnalyzing={isAnalyzing}
         isOpen={isSidebarOpen}
         onToggle={handleSidebarToggle}
+        onDocumentAnalysisUpdate={handleDocumentAnalysisUpdate}
+        selectedResumeFile={selectedResumeFile}
+        selectedJobFile={selectedJobFile}
+        onSelectedResumeChange={handleSelectedResumeChange}
+        onSelectedJobChange={handleSelectedJobChange}
       />
       <MainContent
         jobPostingFile={jobPostingFile}
@@ -114,6 +156,10 @@ function App() {
         sttResult={sttResult}
         analysisResult={analysisResult}
         isAnalyzing={isAnalyzing}
+        documentAnalysisResult={documentAnalysisResult}
+        documentAnalysisError={documentAnalysisError}
+        selectedResumeFile={selectedResumeFile}
+        selectedJobFile={selectedJobFile}
       />
     </div>
   );

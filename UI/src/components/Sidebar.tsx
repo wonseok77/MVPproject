@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Send, FileText, User, Mic, ChevronLeft, ChevronRight, RefreshCw, BarChart3, List, X } from 'lucide-react';
 import FileUploader from './FileUploader';
-import { uploadAndAnalyze, uploadBothFiles, analyzeFiles, getFilesList } from '../services/api';
+import { uploadAndAnalyze, uploadAndAnalyzeFast, uploadBothFiles, analyzeFiles, getFilesList } from '../services/api';
 import type { UploadAndAnalyzeResponse, AnalysisResponse, FilesListResponse, FileInfo } from '../services/api';
 
 interface SidebarProps {
@@ -18,6 +18,11 @@ interface SidebarProps {
   isAnalyzing: boolean;
   isOpen: boolean;
   onToggle: () => void;
+  onDocumentAnalysisUpdate: (result: string | null, error: string | null) => void;
+  selectedResumeFile: string | null;
+  selectedJobFile: string | null;
+  onSelectedResumeChange: (filename: string | null) => void;
+  onSelectedJobChange: (filename: string | null) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -33,12 +38,19 @@ const Sidebar: React.FC<SidebarProps> = ({
   onStartAnalysis,
   isAnalyzing,
   isOpen,
-  onToggle
+  onToggle,
+  onDocumentAnalysisUpdate,
+  selectedResumeFile,
+  selectedJobFile,
+  onSelectedResumeChange,
+  onSelectedJobChange
 }) => {
   // 문서 분석 상태 관리
   const [isDocumentAnalyzing, setIsDocumentAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisProgress, setAnalysisProgress] = useState<string>('');
+  const [fastMode, setFastMode] = useState(true); // 기본값: 고속 모드
   
   // 파일 목록 상태 관리
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
@@ -50,12 +62,15 @@ const Sidebar: React.FC<SidebarProps> = ({
     resume_files: [],
     job_files: []
   });
-  const [selectedResumeFile, setSelectedResumeFile] = useState<string | null>(null);
-  const [selectedJobFile, setSelectedJobFile] = useState<string | null>(null);
 
   const canStartAnalysis = jobPostingFile && resumeFile && interviewFile;
   const canAnalyzeDocuments = jobPostingFile && resumeFile;
   const canAnalyzeSelected = selectedResumeFile && selectedJobFile;
+
+  // 분석 결과가 변경될 때마다 부모 컴포넌트에게 알림
+  useEffect(() => {
+    onDocumentAnalysisUpdate(analysisResult, analysisError);
+  }, [analysisResult, analysisError, onDocumentAnalysisUpdate]);
 
   // 파일 목록 불러오기
   const loadFilesList = async () => {
@@ -110,7 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  // 업로드된 파일들로 분석 (기존 기능)
+  // 업로드된 파일들로 분석 (시연용 최적화)
   const handleDocumentAnalysis = async () => {
     if (!jobPostingFile || !resumeFile) {
       setAnalysisError('이력서와 채용공고 파일을 모두 업로드해주세요.');
@@ -120,22 +135,73 @@ const Sidebar: React.FC<SidebarProps> = ({
     setIsDocumentAnalyzing(true);
     setAnalysisError(null);
     setAnalysisResult(null);
+    setAnalysisProgress('📤 1단계: 파일 업로드 중...');
 
     try {
-      console.log('업로드된 파일들로 분석 시작...');
-      const result: UploadAndAnalyzeResponse = await uploadAndAnalyze(resumeFile, jobPostingFile);
+      console.log('🚀 시연용 업로드+분석 시작...');
+      
+      // 진행 상황 표시를 위한 지연
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setAnalysisProgress('⚡ 2단계: 인덱서 실행 중...');
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setAnalysisProgress('🔍 3단계: 최신 인덱스 재발견 중...');
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setAnalysisProgress('⏳ 4단계: 인덱싱 완료 대기 중...');
+      
+      const result: UploadAndAnalyzeResponse = fastMode 
+        ? await uploadAndAnalyzeFast(resumeFile, jobPostingFile)
+        : await uploadAndAnalyze(resumeFile, jobPostingFile);
+      
+      setAnalysisProgress('📊 5단계: 분석 실행 중...');
+      
+      // 상세 진행 상황 로그
+      console.log('📊 분석 결과:', result);
+      
+      if (result.indexer_result) {
+        console.log('⚡ 인덱서 실행 결과:', result.indexer_result.status);
+      }
+      
+      if (result.index_info) {
+        console.log(`🔍 인덱스 정보: ${result.index_info.old_index} → ${result.index_info.new_index}`);
+        if (result.index_info.index_changed) {
+          console.log('✅ 새로운 인덱스가 발견되었습니다!');
+        }
+      }
+      
+      if (result.indexing_status) {
+        console.log(`📋 인덱싱 상태 - 이력서: ${result.indexing_status.resume_indexed}, 채용공고: ${result.indexing_status.job_indexed}`);
+      }
       
       if (result.status === 'success' && result.analysis_result?.analysis) {
+        setAnalysisProgress('✅ 분석 완료!');
         setAnalysisResult(result.analysis_result.analysis);
-        console.log('업로드된 파일들 분석 완료!');
+        console.log('✅ 시연용 분석 완료!');
+        
+        // 인덱싱 상태 정보를 사용자에게 표시
+        let statusMessage = '';
+        if (result.indexing_status && (!result.indexing_status.resume_indexed || !result.indexing_status.job_indexed)) {
+          statusMessage = '\n\n⚠️ 일부 파일의 인덱싱이 완료되지 않았지만 분석을 진행했습니다.';
+        }
+        
+        if (result.index_info?.index_changed) {
+          statusMessage += '\n\n✅ 새로운 인덱스가 자동으로 감지되었습니다.';
+        }
+        
+        if (statusMessage) {
+          setAnalysisResult(result.analysis_result.analysis + statusMessage);
+        }
+        
       } else {
         setAnalysisError(result.message || '업로드된 파일들 분석에 실패했습니다.');
       }
     } catch (error) {
-      console.error('업로드된 파일들 분석 오류:', error);
+      console.error('❌ 시연용 분석 오류:', error);
       setAnalysisError(`업로드된 파일들 분석 중 오류가 발생했습니다: ${error}`);
     } finally {
       setIsDocumentAnalyzing(false);
+      setAnalysisProgress('');
     }
   };
 
@@ -153,8 +219,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     onRemoveInterview();
     
     // 선택한 파일들 제거
-    setSelectedResumeFile(null);
-    setSelectedJobFile(null);
+    onSelectedResumeChange(null);
+    onSelectedJobChange(null);
     
     // 분석 결과 초기화
     setAnalysisResult(null);
@@ -219,7 +285,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <label className="block text-xs font-medium text-gray-600 mb-1">이력서 파일</label>
               <select
                 value={selectedResumeFile || ''}
-                onChange={(e) => setSelectedResumeFile(e.target.value || null)}
+                onChange={(e) => onSelectedResumeChange(e.target.value || null)}
                 className="w-full text-sm border border-gray-300 rounded px-2 py-1"
               >
                 <option value="">선택하세요</option>
@@ -236,7 +302,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <label className="block text-xs font-medium text-gray-600 mb-1">채용공고 파일</label>
               <select
                 value={selectedJobFile || ''}
-                onChange={(e) => setSelectedJobFile(e.target.value || null)}
+                onChange={(e) => onSelectedJobChange(e.target.value || null)}
                 className="w-full text-sm border border-gray-300 rounded px-2 py-1"
               >
                 <option value="">선택하세요</option>
@@ -312,20 +378,57 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         {/* 버튼 섹션 */}
         <div className="mt-8 pt-6 border-t border-gray-200 space-y-3">
+          {/* 분석 모드 선택 */}
+          <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+            <h3 className="text-sm font-semibold text-blue-800 mb-2">분석 모드</h3>
+            <div className="space-y-2">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  name="analysisMode"
+                  checked={fastMode}
+                  onChange={() => setFastMode(true)}
+                  className="text-blue-600"
+                />
+                <span className="text-sm text-blue-700">⚡ 고속 모드 (시연용 - 10초 대기)</span>
+              </label>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  name="analysisMode"
+                  checked={!fastMode}
+                  onChange={() => setFastMode(false)}
+                  className="text-blue-600"
+                />
+                <span className="text-sm text-blue-700">🔄 일반 모드 (정확한 인덱싱 - 30초 대기)</span>
+              </label>
+            </div>
+          </div>
+          
           {/* 업로드된 파일들 분석 버튼 */}
           <button
             onClick={handleDocumentAnalysis}
             disabled={!canAnalyzeDocuments || isDocumentAnalyzing}
-            className={`w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-lg font-medium transition-all
+            className={`w-full flex flex-col items-center justify-center space-y-1 py-3 px-4 rounded-lg font-medium transition-all
               ${canAnalyzeDocuments && !isDocumentAnalyzing
                 ? 'bg-green-600 text-white hover:bg-green-700 transform hover:scale-105'
                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'
               }`}
           >
-            <BarChart3 className="w-5 h-5" />
-            <span>
-              {isDocumentAnalyzing ? '분석 중...' : '업로드된 파일들 분석'}
-            </span>
+            <div className="flex items-center space-x-2">
+              <BarChart3 className="w-5 h-5" />
+              <span>
+                {isDocumentAnalyzing 
+                  ? (fastMode ? '⚡ 고속 분석 중...' : '🔄 일반 분석 중...') 
+                  : (fastMode ? '⚡ 고속 분석 (시연용)' : '🔄 일반 분석')
+                }
+              </span>
+            </div>
+            {analysisProgress && (
+              <div className="text-xs opacity-90 text-center">
+                {analysisProgress}
+              </div>
+            )}
           </button>
 
           {/* 분석 결과 초기화 버튼 */}
@@ -365,23 +468,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* 분석 결과 표시 */}
-        {analysisError && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-700">❌ {analysisError}</p>
-          </div>
-        )}
 
-        {analysisResult && (
-          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg max-h-40 overflow-y-auto">
-            <h4 className="text-sm font-semibold text-green-800 mb-2">
-              ✅ 문서 분석 결과
-            </h4>
-            <div className="text-xs text-green-700 whitespace-pre-wrap">
-              {analysisResult}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* 닫혔을 때 표시할 아이콘들 */}
