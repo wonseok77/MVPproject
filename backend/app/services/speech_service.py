@@ -17,11 +17,23 @@ class SpeechAnalysisService:
     """면접 녹음 STT 및 분석 서비스"""
     
     def __init__(self):
-        # Azure OpenAI 클라이언트 설정 (STT용)
+        # Azure OpenAI 클라이언트 설정 (STT용) - GPT-4o-transcribe 전용
+        # 🔧 .env 파일 설정값 사용
+        stt_endpoint = settings.azureopenai_endpoint or "https://user04-openai-eastus2.openai.azure.com/"
+        stt_key = settings.azureopenai_key or settings.azure_openai_api_key
+        stt_api_version = settings.azureopenai_api_version  # .env에서 로드: 2025-03-20
+        self.stt_model = settings.azureopenai_transcription_model  # .env에서 로드: gpt-4o-transcribe-eastus2
+            
+        print(f"🔧 STT용 Azure OpenAI 설정 (.env 파일 연동):")
+        print(f"   Endpoint: {stt_endpoint}")
+        print(f"   API Key: {stt_key[:10]}...{stt_key[-5:] if stt_key else 'NONE'}")
+        print(f"   API Version: {stt_api_version}")
+        print(f"   Model: {self.stt_model}")
+        
         self.openai_client = openai.AzureOpenAI(
-            api_key=settings.azureopenai_key,
-            api_version=settings.azureopenai_api_version,
-            azure_endpoint=settings.azureopenai_endpoint
+            api_key=stt_key,
+            api_version=stt_api_version,
+            azure_endpoint=stt_endpoint
         )
         
         # LangChain Azure OpenAI 클라이언트 (분석용)
@@ -44,6 +56,8 @@ class SpeechAnalysisService:
             self.blob_service_client = None
             self.container_name = None
     
+
+
     def upload_audio_file(self, file_content: bytes, filename: str) -> Dict[str, Any]:
         """면접 녹음 파일을 Azure Blob Storage에 업로드"""
         try:
@@ -80,31 +94,68 @@ class SpeechAnalysisService:
     
     def transcribe_audio(self, file_content: bytes, filename: str) -> Dict[str, Any]:
         """음성 파일을 텍스트로 변환 (STT)"""
+        processing_status = "UNKNOWN"
+        file_status = "UNKNOWN"
+        api_status = "UNKNOWN"
+        
         try:
             logger.info(f"STT 시작: {filename}")
             
-            # 임시 파일로 저장 (OpenAI API는 파일 경로가 필요)
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
+            # 1단계: 파일 처리
+            processing_status = "파일 처리 중"
+            print(f"📋 [1단계] 파일 처리 시작: {filename}")
+            
+            # 원본 파일 확장자 추출
+            file_ext = os.path.splitext(filename)[1].lower()
+            if not file_ext:
+                file_ext = ".wav"  # 기본값
+            
+            # 🎵 모든 파일 타입 직접 지원 (Azure Playground 확인됨)
+            print(f"🎵 {file_ext} 파일 - Azure OpenAI 직접 지원")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
                 temp_file.write(file_content)
                 temp_file_path = temp_file.name
+            file_status = f"{file_ext} 파일 처리 완료 (직접 지원)"
+            
+            print(f"✅ [1단계] 파일 처리 성공: {file_status}")
+            processing_status = "API 호출 준비 중"
             
             try:
-                # Azure OpenAI Whisper API 호출
+                # 2단계: Azure OpenAI API 호출
+                print(f"📋 [2단계] Azure OpenAI API 호출 시작")
+                print(f"   🎯 모델: gpt-4o-transcribe-eastus2")
+                print(f"   📁 파일: {temp_file_path}")
+                print(f"   🌏 언어: ko")
+                print(f"   🔗 API 버전: 2025-03-20")
+                
+                processing_status = "Azure OpenAI API 호출 중"
+                api_status = "API 호출 전송 중"
+                
+                # 🔥 gpt-4o-transcribe-eastus2 모델만 사용
                 with open(temp_file_path, "rb") as audio_file:
                     transcript = self.openai_client.audio.transcriptions.create(
-                        model=settings.azureopenai_transcription_model,
+                        model=self.stt_model,  # .env에서 로드된 모델명 사용
                         file=audio_file,
-                        language="ko"  # 한국어 설정
+                        language="ko"
                     )
                 
+                api_status = "API 호출 성공"
                 transcribed_text = transcript.text
-                logger.info(f"STT 완료: {len(transcribed_text)}자")
+                print(f"✅ [2단계] Azure OpenAI API 호출 성공")
+                print(f"🎯 사용된 모델: gpt-4o-transcribe-eastus2")
+                print(f"📝 변환된 텍스트 길이: {len(transcribed_text)}자")
+                logger.info(f"STT 완료 (모델: gpt-4o-transcribe-eastus2): {len(transcribed_text)}자")
+                
+                processing_status = "완료"
                 
                 return {
                     "status": "success",
                     "transcription": transcribed_text,
                     "filename": filename,
-                    "text_length": len(transcribed_text)
+                    "text_length": len(transcribed_text),
+                    "processing_status": processing_status,
+                    "file_status": file_status,
+                    "api_status": api_status
                 }
                 
             finally:
@@ -113,10 +164,51 @@ class SpeechAnalysisService:
                     os.unlink(temp_file_path)
                     
         except Exception as e:
-            logger.error(f"STT 오류: {str(e)}")
+            # 단계별 오류 분석
+            error_stage = "알 수 없음"
+            if "404" in str(e) or "Resource not found" in str(e):
+                error_stage = "Azure OpenAI API 호출 단계"
+                api_status = "API 호출 실패 (404 - 리소스 없음)"
+                processing_status = "API 오류로 실패"
+            elif "FileNotFoundError" in str(e):
+                error_stage = "파일 처리 단계"
+                file_status = "파일 처리 실패"
+                processing_status = "파일 오류로 실패"
+            elif "Azure" in str(e):
+                error_stage = "Azure 서비스 연결 단계"
+                api_status = "Azure 연결 실패"
+                processing_status = "연결 오류로 실패"
+            else:
+                error_stage = processing_status
+            
+            print(f"💥 [오류 발생] 단계: {error_stage}")
+            print(f"💥 오류 타입: {type(e).__name__}")
+            print(f"💥 오류 메시지: {str(e)}")
+            print(f"📊 처리 상태: {processing_status}")
+            print(f"📁 파일 상태: {file_status}")
+            print(f"🔗 API 상태: {api_status}")
+            
+            import traceback
+            print(f"💥 상세 스택 트레이스:\n{traceback.format_exc()}")
+            
+            logger.error(f"STT 오류 ({error_stage}): {str(e)}")
+            
+            # 사용자 친화적 에러 메시지 생성
+            if "404" in str(e):
+                user_message = "Azure OpenAI 모델을 찾을 수 없습니다. 모델 deployment 설정을 확인해주세요."
+            elif "FileNotFoundError" in str(e):
+                user_message = "파일 처리 중 오류가 발생했습니다. 파일 형식을 확인해주세요."
+            else:
+                user_message = f"음성 변환 중 오류 발생: {str(e)}"
+            
             return {
                 "status": "error",
-                "message": f"음성 변환 중 오류 발생: {str(e)}"
+                "message": user_message,
+                "error_stage": error_stage,
+                "processing_status": processing_status,
+                "file_status": file_status,
+                "api_status": api_status,
+                "technical_error": str(e)
             }
     
     def analyze_interview_content(self, transcription: str, job_description: str = "") -> Dict[str, Any]:

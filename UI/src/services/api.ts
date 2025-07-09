@@ -318,4 +318,30 @@ export const getInterviewFiles = async (): Promise<{
   }
 
   return await response.json();
+};
+
+// 기존 면접 파일 STT 처리
+export const transcribeExistingFile = async (filename: string): Promise<{
+  status: 'success' | 'error';
+  transcription?: string;
+  filename?: string;
+  text_length?: number;
+  processing_status?: string;
+  file_status?: string;
+  api_status?: string;
+  message?: string;
+  technical_error?: string;
+}> => {
+  const response = await fetch(`${API_BASE_URL}/interview/transcribe-existing-file?filename=${encodeURIComponent(filename)}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return await response.json();
 }; 

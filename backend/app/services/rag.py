@@ -11,7 +11,7 @@ embeddings = AzureOpenAIEmbeddings(model=os.getenv("AZURE_OPENAI_EMBEDDING_MODEL
 llm = AzureChatOpenAI(
     model=os.getenv("AZURE_OPENAI_MODEL_1", "gpt-4"),
     temperature=0,
-    api_version="2025-01-01-preview",
+    api_version="2024-08-01-preview",
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
     azure_deployment=os.getenv("AZURE_OPENAI_MODEL_1", "gpt-4"),
 )
@@ -44,7 +44,7 @@ prompt = ChatPromptTemplate.from_template(
 llm2 = AzureChatOpenAI(
     model=os.getenv("AZURE_OPENAI_MODEL_1", "gpt-4o"),
     temperature=0,
-    api_version="2024-11-20",
+    api_version="2024-08-01-preview",
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
     azure_deployment=os.getenv("AZURE_OPENAI_MODEL_1", "gpt-4o"),
 )

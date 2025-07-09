@@ -29,6 +29,7 @@ interface SidebarProps {
   sttResult: string;
   documentAnalysisResult: string | null;
   onResetAll: () => void;
+  onSttUpdate: (sttResult: string) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -55,7 +56,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onIntegratedAnalysisUpdate,
   sttResult,
   documentAnalysisResult,
-  onResetAll
+  onResetAll,
+  onSttUpdate
 }) => {
   // 문서 분석 상태 관리
   const [isDocumentAnalyzing, setIsDocumentAnalyzing] = useState(false);
@@ -183,15 +185,39 @@ const Sidebar: React.FC<SidebarProps> = ({
       setAnalysisResult(documentResult.analysis);
       onDocumentAnalysisUpdate(documentResult.analysis, null);
 
-      // 2단계: 면접 STT (기존 파일은 이미 텍스트로 변환되었다고 가정)
-      console.log('🎤 2단계: 면접 내용 분석 중...');
-      // TODO: 기존 면접 파일의 STT 결과 가져오기 또는 STT 처리
-      // 현재는 임시로 빈 문자열 사용
-      const mockSttResult = "면접 내용이 여기에 표시됩니다. (기존 파일 STT 기능 구현 필요)";
+      // 2단계: 면접 STT (기존 파일 실제 STT 처리)
+      console.log('🎤 2단계: 기존 면접 파일 STT 처리 중...');
+      let sttResult = "";
+      
+      if (selectedInterviewFile) {
+        try {
+          // 기존 면접 파일 STT 처리
+          const { transcribeExistingFile } = await import('../services/api');
+          const sttResponse = await transcribeExistingFile(selectedInterviewFile);
+          
+          if (sttResponse.status === 'success' && sttResponse.transcription) {
+            sttResult = sttResponse.transcription;
+            console.log('✅ 기존 파일 STT 처리 완료:', sttResult.length + '자');
+            
+            // STT 결과를 부모 컴포넌트에 전달
+            if (sttResult && typeof sttResult === 'string' && sttResult.length > 0) {
+              onSttUpdate(sttResult);
+            }
+          } else {
+            console.log('⚠️ 기존 파일 STT 처리 실패:', sttResponse.message);
+            sttResult = "기존 파일 STT 처리에 실패했습니다.";
+          }
+        } catch (error) {
+          console.error('❌ 기존 파일 STT 처리 오류:', error);
+          sttResult = "기존 파일 STT 처리 중 오류가 발생했습니다.";
+        }
+      } else {
+        sttResult = "선택된 면접 파일이 없습니다.";
+      }
       
       // 면접 분석
       const interviewAnalysisResult = await quickInterviewAnalysis(
-        mockSttResult,
+        sttResult,
         selectedJobFile ? "채용공고 내용" : undefined,
         selectedResumeFile ? "이력서 내용" : undefined
       );
@@ -200,7 +226,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       console.log('🎯 3단계: 통합 분석 중...');
       const integratedResult = await integratedAnalysis(
         documentResult.analysis,
-        mockSttResult,
+        sttResult,
         selectedResumeFile,
         selectedJobFile
       );
@@ -527,8 +553,8 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <FileUploader
               title="면접 녹음 파일 업로드"
-              allowedTypes={['mp3', 'wav']}
-              fileTypeLabel="MP3, WAV"
+              allowedTypes={['mp3', 'wav', 'm4a']}
+              fileTypeLabel="MP3, WAV, M4A"
               onFileUpload={onInterviewUpload}
               uploadedFile={interviewFile}
               onRemoveFile={onRemoveInterview}

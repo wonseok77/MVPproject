@@ -72,13 +72,13 @@ class DocumentAnalyzer:
                 return latest_index
             else:
                 # 기본 인덱스 이름 반환
-                fallback_index = "rag-1751935906958"
+                fallback_index = "rag-1752025961760"
                 print(f"⚠️ rag- 인덱스를 찾을 수 없어서 기본값 사용: {fallback_index}")
                 return fallback_index
                 
         except Exception as e:
             # 오류 시 기본 인덱스 이름 사용
-            fallback_index = "rag-1751935906958"
+            fallback_index = "rag-1752025961760"
             print(f"❌ 인덱스 조회 오류, 기본값 사용: {fallback_index} (오류: {str(e)})")
             return fallback_index
     

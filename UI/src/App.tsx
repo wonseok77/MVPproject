@@ -348,6 +348,7 @@ function App() {
         sttResult={sttResult}
         documentAnalysisResult={documentAnalysisResult}
         onResetAll={handleResetAll}
+        onSttUpdate={setSttResult}
       />
       <MainContent
         jobPostingFile={jobPostingFile}

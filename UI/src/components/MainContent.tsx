@@ -281,9 +281,27 @@ const MainContent: React.FC<MainContentProps> = ({
 
       {/* Analysis Result */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">분석 결과 요약</h2>
+        <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center space-x-2">
+          <BarChart3 className="w-6 h-6 text-blue-600" />
+          <span>분석 결과 요약</span>
+          {localIntegratedResult && (
+            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+              🎯 2단계 통합 분석 완료
+            </span>
+          )}
+        </h2>
         <div className="bg-gray-50 rounded-lg p-4 max-h-180 overflow-y-auto">
-          {analysisResult ? (
+          {integratedAnalysisError ? (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700">❌ {integratedAnalysisError}</p>
+            </div>
+          ) : localIntegratedResult ? (
+            <div className="prose prose-sm max-w-none text-sm text-gray-700 leading-relaxed">
+              <ReactMarkdown>
+                {localIntegratedResult}
+              </ReactMarkdown>
+            </div>
+          ) : analysisResult ? (
             <div className="prose prose-sm max-w-none text-sm text-gray-700 leading-relaxed">
               <ReactMarkdown>
                 {analysisResult}
@@ -296,29 +314,6 @@ const MainContent: React.FC<MainContentProps> = ({
           )}
         </div>
       </div>
-
-      {/* Integrated Analysis Result (2-Step Demo) */}
-      {(localIntegratedResult || integratedAnalysisError) && (
-        <div className="bg-white rounded-lg shadow-sm border border-blue-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold text-blue-800 mb-4 flex items-center space-x-2">
-            <BarChart3 className="w-6 h-6 text-blue-600" />
-            <span>🎯 최종 종합 평가 (2단계 통합 분석)</span>
-          </h2>
-          <div className="bg-blue-50 rounded-lg p-4 max-h-180 overflow-y-auto">
-            {integratedAnalysisError ? (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-700">❌ {integratedAnalysisError}</p>
-              </div>
-            ) : localIntegratedResult ? (
-              <div className="prose prose-sm max-w-none text-sm text-gray-700 leading-relaxed">
-                <ReactMarkdown>
-                  {localIntegratedResult}
-                </ReactMarkdown>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
 
       {/* Prompt Input */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
