@@ -1,0 +1,25 @@
+#!/bin/bash
+echo "=== KT DS Interview Analysis System - Simple Startup ==="
+echo "Current directory: $(pwd)"
+echo "Directory contents:"
+ls -la
+
+# Python 의존성 설치
+echo "Installing Python dependencies..."
+pip install -r requirements.txt
+
+# 프론트엔드 빌드 파일 확인
+if [ -d "UI/dist" ]; then
+    echo "Frontend build found!"
+    echo "Frontend files:"
+    ls -la UI/dist/
+else
+    echo "WARNING: Frontend build not found. Please build locally and redeploy."
+    echo "Available directories:"
+    ls -la UI/ || echo "UI directory not found"
+fi
+
+# 백엔드 서버 시작
+echo "Starting backend server..."
+echo "Port: ${PORT:-8000}"
+python -m uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000} 

@@ -1,0 +1,15 @@
+{
+  "name": "ktds-interview-system",
+  "version": "1.0.0",
+  "description": "KT DS 면접 분석 시스템",
+  "private": true,
+  "scripts": {
+    "build": "cd UI && npm install && npm run build",
+    "dev": "cd UI && npm run dev",
+    "preview": "cd UI && npm run preview"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
+} 

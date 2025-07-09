@@ -1,0 +1,66 @@
+#!/bin/bash
+set -e
+
+echo "=== KT DS 면접 분석 시스템 배포 시작 ==="
+echo "Current directory: $(pwd)"
+echo "Contents: $(ls -la)"
+echo "Python version: $(python --version)"
+
+# Check if Node.js is available
+if command -v node &> /dev/null; then
+    echo "Node version: $(node --version)"
+    echo "NPM version: $(npm --version)"
+else
+    echo "Node.js not found, installing..."
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+    apt-get install -y nodejs
+fi
+
+# 1. Python 의존성 설치
+echo "Installing Python dependencies..."
+pip install -r requirements.txt
+
+# 2. 프론트엔드 빌드
+echo "Building frontend..."
+
+# UI 디렉토리 존재 확인
+if [ ! -d "UI" ]; then
+    echo "ERROR: UI directory not found!"
+    ls -la
+    exit 1
+fi
+
+cd UI
+echo "Frontend directory contents: $(ls -la)"
+
+# Node.js 의존성 설치
+echo "Installing frontend dependencies..."
+npm install
+
+# 프론트엔드 빌드
+echo "Building frontend application..."
+npm run build
+
+# 빌드 결과 확인
+if [ ! -d "dist" ]; then
+    echo "ERROR: Build failed - dist directory not created!"
+    exit 1
+fi
+
+echo "Build successful! Contents of dist:"
+ls -la dist/
+
+# 원래 디렉토리로 돌아가기
+cd ..
+echo "Frontend build completed!"
+
+# 3. 서버 실행
+echo ""
+echo "Starting backend server..."
+echo "Frontend build directory: UI/dist"
+echo "Port: ${PORT:-8000}"
+echo "Backend will serve frontend at root path (/)"
+echo "API endpoints available at /api/*"
+echo ""
+
+python -m uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000} 
