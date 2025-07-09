@@ -20,15 +20,8 @@
 │ • 파일 업로드    │    │ • 문서 분석      │    │ • OpenAI GPT-4o │
 │ • 분석 결과 표시 │    │ • STT 처리      │    │ • Blob Storage  │
 │ • 결과 저장/로드 │    │ • 통합 분석      │    │ • AI Search     │
+│                 │    │ • JSON 저장소    │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │
-                         ┌─────────────────┐
-                         │  ChromaDB       │
-                         │  Vector Store   │
-                         │                 │
-                         │ • 문서 임베딩    │
-                         │ • 벡터 검색      │
-                         └─────────────────┘
 ```
 
 ## 🛠️ 기술 스택
@@ -50,7 +43,6 @@
 - **Azure OpenAI GPT-4o-transcribe** - 음성-텍스트 변환 (STT)
 - **Azure Blob Storage** - 파일 저장소
 - **Azure AI Search** - 문서 검색 및 인덱싱
-- **ChromaDB** - 로컬 벡터 데이터베이스
 
 ### Development Tools
 - **Docker** - 컨테이너화 (옵션)
@@ -197,8 +189,7 @@ MVPproject/
 │   │       ├── document_analyzer.py # 문서 분석 서비스
 │   │       ├── speech_service.py    # 음성 처리 서비스
 │   │       ├── rag.py              # RAG 시스템
-│   │       └── chroma_store.py     # ChromaDB 관리
-│   ├── chroma_db/           # ChromaDB 로컬 저장소
+│   │       └── chroma_store.py     # JSON 임시 저장소
 │   ├── run.py              # 서버 실행 스크립트
 │   └── README.md           # 백엔드 문서
 │
@@ -260,9 +251,6 @@ AZURE_STORAGE_CONTAINER_NAME=your_container
 AZURE_AI_SEARCH_SERVICE_NAME=your_search_service
 AZURE_AI_SEARCH_API_KEY=your_search_key
 AZURE_AI_SEARCH_INDEX_NAME=your_index_name
-
-# ChromaDB 설정
-CHROMA_PERSIST_DIR=./chroma_db
 ```
 
 ### 3. 백엔드 실행
