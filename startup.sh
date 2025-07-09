@@ -12,11 +12,11 @@ pip install -r requirements.txt
 # 프론트엔드 빌드 확인
 echo "Checking for frontend build..."
 if [ -d "UI/dist" ]; then
-    echo "✅ Frontend build found!"
+    echo "Frontend build found!"
     echo "Frontend files:"
     ls -la UI/dist/
 else
-    echo "❌ Frontend build not found!"
+    echo "Frontend build not found!"
     echo "Checking UI directory:"
     if [ -d "UI" ]; then
         echo "UI directory exists, attempting to build..."
@@ -25,13 +25,13 @@ else
         npm run build
         cd ..
     else
-        echo "❌ UI directory not found!"
+        echo "UI directory not found!"
     fi
 fi
 
 # Python 경로 설정 및 백엔드 서버 시작
 echo ""
-echo "🚀 Starting backend server..."
+echo "Starting backend server..."
 echo "Port: ${PORT:-8000}"
 echo "Setting up Python path..."
 
