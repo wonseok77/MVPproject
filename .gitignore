@@ -56,5 +56,7 @@ build/
 chroma_db/
 
 # Azure
-azure_config.json .env
+azure_config.json
+
+# Environment files (추가 확인)
 .env
