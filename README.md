@@ -11,6 +11,12 @@
 - **결과 저장 및 관리**: 분석 결과를 체계적으로 저장하고 불러올 수 있는 기능
 
 ## 🤖 AI Agent System Prompt & Persona
+### 🔍 Azure Resource
+- Azure AI Search - Azure Blob Storage
+- Azure openai 
+- gpt-4o : 분석, 평가, 요약 수행
+- gpt-4o-text-embedding-3-small : 임베딩
+- gpt_4o_transcribe : 음성파일 STT 및 분석
 
 ### 📝 Agent Persona (에이전트 역할)
 본 시스템의 AI 에이전트는 **전문 면접관이자 HR 컨설턴트**로 설계되어 있습니다.
@@ -167,9 +173,6 @@ AI 에이전트는 **5가지 핵심 영역**에서 지원자를 평가합니다:
 - **Azure Blob Storage** - 파일 저장소
 - **Azure AI Search** - 문서 검색 및 인덱싱
 
-### Development Tools
-- **Docker** - 컨테이너화 (옵션)
-- **ESLint** + **TypeScript** - 코드 품질 관리
 
 ## 🚀 주요 기능
 
