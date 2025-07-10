@@ -2,8 +2,10 @@
 FastAPI 메인 애플리케이션
 """
 import logging
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from .routers import document_api, interview_api
 from .config import settings
 
@@ -26,7 +28,11 @@ app = FastAPI(
 # CORS 설정 (React 프론트엔드와 통신을 위해)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # React 개발서버 포트
+    allow_origins=[
+        "http://localhost:3000",  # React 개발서버
+        "http://localhost:5173",  # Vite 개발서버
+        "*"  # Azure 배포 환경에서는 모든 origin 허용 (보안상 주의 필요)
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
@@ -35,7 +41,14 @@ app.add_middleware(
 # 라우터 등록
 app.include_router(document_api.router, prefix="/api")
 app.include_router(interview_api.router, prefix="/api")
-app.include_router(interview_api.router, prefix="/api")
+
+# 프론트엔드 정적 파일 서빙 설정
+frontend_dist_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "UI", "dist")
+if os.path.exists(frontend_dist_path):
+    logger.info(f"프론트엔드 정적 파일 경로: {frontend_dist_path}")
+    app.mount("/", StaticFiles(directory=frontend_dist_path, html=True), name="static")
+else:
+    logger.warning(f"프론트엔드 빌드 파일을 찾을 수 없음: {frontend_dist_path}")
 
 
 @app.get("/")
