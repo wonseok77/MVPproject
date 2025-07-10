@@ -44,8 +44,15 @@ echo "Backend directory contents:"
 ls -la backend/
 ls -la backend/app/
 
-# 서버 실행 (절대 경로 사용)
-cd /home/site/wwwroot
-exec python -m uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# 서버 실행 (backend 디렉토리로 이동해서 실행)
+echo "Attempting to start server from backend directory..."
+cd /home/site/wwwroot/backend
+echo "Current directory: $(pwd)"
+echo "Python files in current directory:"
+find . -name "*.py" | head -10
+
+# Method 1: Try running from backend directory
+echo "Method 1: Running from backend directory..."
+exec python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
 
 # Fixed for Linux deployment - LF line endings 
