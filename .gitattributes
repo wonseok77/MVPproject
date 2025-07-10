@@ -12,6 +12,14 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 
+# 쉘 스크립트 파일 (Linux 배포 시 필수: LF 줄바꿈)
+*.sh text eol=lf
+startup.sh text eol=lf
+script.sh text eol=lf
+
+# 배포 관련 중요 파일들
+requirements.txt text eol=lf
+
 # 바이너리 파일 설정
 *.png binary
 *.jpg binary
