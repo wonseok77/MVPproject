@@ -44,3 +44,5 @@ echo "API endpoints available at /api/*"
 echo ""
 
 python -m uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+
+# Fixed for Linux deployment - LF line endings 
