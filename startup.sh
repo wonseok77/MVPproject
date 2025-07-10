@@ -46,4 +46,6 @@ ls -la backend/app/
 
 # 서버 실행 (절대 경로 사용)
 cd /home/site/wwwroot
-exec python -m uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000} 
+exec python -m uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+
+# Fixed for Linux deployment - LF line endings 
