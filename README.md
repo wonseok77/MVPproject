@@ -62,20 +62,21 @@ AI 에이전트는 **5가지 핵심 영역**에서 지원자를 평가합니다:
 - **예측 분석**: 조직 내 성공 가능성 및 적응도 예측
 - **비교 분석**: 채용공고 요구사항과 지원자 역량의 정밀 매칭
 
-#### 🔬 분석 깊이 제어
+#### 🔬 지능형 분석 엔진
 ```
-⚡ 빠른 분석 모드 (10초)
-├── 기본 적합도 평가
-├── 핵심 강점/약점 식별
-└── 간단한 채용 권고
+🧠 AI 기반 적응형 분석 시스템
+├── 문서 복잡도 자동 감지
+├── 인덱스 최적화 및 스마트 매칭
+├── 컨텍스트 기반 의미 분석
+├── 다차원 벡터 유사도 계산
+└── 실시간 결과 생성 및 검증
+```
 
-🔄 정밀 분석 모드 (30초)
-├── 심층 역량 분석
-├── 성장 가능성 평가
-├── 조직 문화 적합성 분석
-├── 구체적 개선 방안 제시
-└── 상세한 후속 질문 제안
-```
+**인덱싱 및 처리 방식:**
+- **Azure AI Search 인덱스**: 문서 내용을 벡터화하여 의미 기반 검색 지원
+- **청크 기반 분석**: 긴 문서를 의미 단위로 분할하여 정확도 향상
+- **컨텍스트 윈도우 최적화**: GPT-4o의 32K 토큰 한도 내에서 최대 정보 활용
+- **캐싱 시스템**: 동일 문서 재분석 시 기존 인덱스 활용으로 응답 속도 향상
 
 #### 🎯 맞춤형 평가 기준
 - **직무별 가중치**: 개발자, 기획자, 디자이너 등 직무 특성 반영
@@ -210,10 +211,10 @@ AI 에이전트는 **5가지 핵심 영역**에서 지원자를 평가합니다:
 - **파일 기반 저장**: Azure Blob Storage 활용
 
 ### 5. ⚡ 성능 최적화
-- **빠른 분석 모드**: 10초 이내 결과 제공
-- **정밀 분석 모드**: 30초 완전 분석 (깊은 의미 파악)
-- **스마트 인덱싱**: 자동 인덱스 감지 및 업데이트
-- **캐싱 시스템**: 중복 분석 방지
+- **지능형 분석 엔진**: 문서 복잡도에 따른 자동 최적화 (10-30초)
+- **스마트 인덱싱**: Azure AI Search 인덱스 자동 감지 및 업데이트
+- **캐싱 시스템**: 동일 파일 중복 분석 방지로 응답 속도 향상
+- **병렬 처리**: 문서 분석과 STT 처리 동시 실행
 
 ## 🔌 API 엔드포인트
 
@@ -222,11 +223,10 @@ AI 에이전트는 **5가지 핵심 영역**에서 지원자를 평가합니다:
 #### ✅ 활성 엔드포인트
 - `POST /upload-resume` - 이력서 파일 업로드
 - `POST /upload-job` - 채용공고 파일 업로드
-- `POST /analyze-files` - 업로드된 파일들 분석
-- `POST /upload-and-analyze` - 업로드+분석 한번에 (정밀모드)
-- `POST /upload-and-analyze-fast` - 업로드+분석 한번에 (고속모드)
+- `POST /analyze-files` - 업로드된 파일들 지능형 분석
+- `POST /upload-and-analyze` - 업로드+분석 한번에 (자동 최적화)
 - `GET /files-list` - 저장된 파일 목록 조회
-- `POST /integrated-analysis` - 2단계 통합 분석
+- `POST /integrated-analysis` - 2단계 통합 분석 (문서+면접)
 - `POST /save-analysis-result` - 분석 결과 저장
 - `GET /get-saved-results` - 저장된 결과 목록 조회
 - `GET /load-analysis-result/{filename}` - 특정 결과 불러오기
@@ -362,33 +362,7 @@ MVPproject/
 - **Node.js 18+**
 - **Azure 구독** (OpenAI, Blob Storage, AI Search)
 
-### 2. 환경 변수 설정
-`.env` 파일을 프로젝트 루트에 생성:
-```bash
-# Azure OpenAI 설정
-AZURE_OPENAI_API_KEY=your_api_key
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o-eastus2
-AZURE_OPENAI_API_VERSION=2024-12-01-preview
-
-# Azure OpenAI Transcription 설정 (STT용)
-AZUREOPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZUREOPENAI_KEY=your_transcription_key
-AZUREOPENAI_API_VERSION=2025-01-01-preview
-AZUREOPENAI_TRANSCRIPTION_MODEL=gpt-4o-transcribe-eastus2
-
-# Azure Storage 설정
-AZURE_STORAGE_ACCOUNT_NAME=your_storage_account
-AZURE_STORAGE_ACCOUNT_KEY=your_storage_key
-AZURE_STORAGE_CONTAINER_NAME=your_container
-
-# Azure AI Search 설정
-AZURE_AI_SEARCH_SERVICE_NAME=your_search_service
-AZURE_AI_SEARCH_API_KEY=your_search_key
-AZURE_AI_SEARCH_INDEX_NAME=your_index_name
-```
-
-### 3. 백엔드 실행
+### 2. 백엔드 실행
 ```bash
 # 가상환경 생성 및 활성화
 python -m venv .venv
@@ -403,7 +377,7 @@ cd backend
 python run.py
 ```
 
-### 4. 프론트엔드 실행
+### 3. 프론트엔드 실행
 ```bash
 # Node.js 패키지 설치
 cd UI
@@ -413,10 +387,17 @@ npm install
 npm run dev
 ```
 
-### 5. 접속 주소
+### 4. 접속 주소
+
+#### 🏠 로컬 개발 환경
 - **웹 애플리케이션**: http://localhost:5173
 - **백엔드 API**: http://localhost:8000
 - **API 문서**: http://localhost:8000/docs
+
+#### 🚀 Azure 프로덕션 환경
+- **배포된 웹 애플리케이션**: https://user04-webapp-002-fwceffbtd4d4dcfb.eastus2-01.azurewebsites.net/
+- **프로덕션 API**: https://user04-webapp-002-fwceffbtd4d4dcfb.eastus2-01.azurewebsites.net/api/
+- **프로덕션 API 문서**: https://user04-webapp-002-fwceffbtd4d4dcfb.eastus2-01.azurewebsites.net/docs
 
 ## 🎮 사용 가이드
 
@@ -424,9 +405,9 @@ npm run dev
 
 #### 1단계: 문서 업로드 및 분석
 1. **파일 업로드**: 이력서와 채용공고를 업로드
-2. **분석 모드 선택**: 빠른 분석(10초) 또는 정밀 분석(30초)
-3. **문서 분석 실행**: "⚡ 빠른 분석" 또는 "🔄 정밀 분석" 버튼 클릭
-4. **결과 확인**: 문서 분석 결과에서 적합도 및 상세 평가 확인
+2. **지능형 분석 실행**: "🎯 문서 분석" 버튼 클릭 (시스템이 자동으로 최적화)
+3. **결과 확인**: 문서 분석 결과에서 적합도 및 상세 평가 확인
+4. **분석 시간**: 문서 복잡도에 따라 10-30초 소요
 
 #### 2단계: 면접 분석
 1. **녹음 파일 업로드**: 면접 녹음 파일(MP3, WAV, M4A) 업로드
@@ -463,9 +444,10 @@ npm run dev
 ## 🔐 보안 및 주의사항
 
 ### 데이터 보안
-- **API 키 보호**: 환경 변수 사용으로 키 노출 방지
+- **클라우드 보안**: Azure 플랫폼 보안 정책 적용
 - **CORS 설정**: 특정 도메인만 접근 허용
 - **파일 검증**: 업로드 파일 형식 및 크기 제한
+- **데이터 암호화**: 전송 중 데이터 TLS 암호화
 
 ### 사용량 관리
 - **Azure OpenAI**: 토큰 사용량 모니터링 필요
@@ -482,7 +464,7 @@ npm run dev
 
 #### 파일 업로드 실패
 - **증상**: 파일 업로드 시 오류
-- **해결**: Azure Storage 계정 키와 컨테이너 이름 확인
+- **해결**: Azure Storage 연결 상태 및 파일 형식 확인
 
 #### 분석 결과 없음
 - **증상**: 분석 완료 후 결과가 표시되지 않음

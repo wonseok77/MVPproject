@@ -17,23 +17,13 @@ cd backend
 pip install -r requirements.txt
 ```
 
-### 2. 환경변수 설정
-`env_config.txt` 파일을 `.env`로 이름을 바꾸고 실제 값을 입력하세요:
+### 2. Azure 서비스 설정
+시스템은 Azure 클라우드 서비스와 연동되어 동작합니다:
 
-```bash
-# 파일 이름 변경
-mv env_config.txt .env
-
-# .env 파일 편집
-# Azure OpenAI 설정
-AZURE_OPENAI_API_KEY=your_actual_api_key_here
-AZURE_OPENAI_ENDPOINT=https://your-resource-name.openai.azure.com/
-AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
-AZURE_OPENAI_API_VERSION=2024-02-15-preview
-
-# ChromaDB 설정
-CHROMA_PERSIST_DIR=./chroma_db
-```
+- **Azure OpenAI**: GPT-4o 모델을 활용한 지능형 분석
+- **Azure Blob Storage**: 파일 저장 및 관리
+- **Azure AI Search**: 문서 인덱싱 및 검색
+- **Azure Web App**: 프로덕션 환경 배포
 
 ### 3. 필요한 Azure 서비스
 - **Azure OpenAI**: GPT-4o 모델 배포 필요
@@ -164,12 +154,13 @@ curl -X POST "http://localhost:8000/analyze/interview" \
 - **오류 추적**: 상세한 오류 메시지와 스택 트레이스 제공
 
 ## 주의사항
-- **API 키 보안**: `.env` 파일을 git에 커밋하지 마세요
-- **CORS 설정**: 필요에 따라 허용 오리진 수정
-- **포트 설정**: 기본 포트 8000, 필요 시 변경 가능
+- **클라우드 보안**: Azure 플랫폼 보안 정책 적용
+- **CORS 설정**: 프로덕션 환경에 맞게 오리진 설정
+- **포트 설정**: 기본 포트 8000, Azure Web App에서 동적 할당
 - **ChromaDB**: 로컬 디렉토리에 데이터 저장됨
 
 ## 문제 해결
 - **모듈 임포트 오류**: `pip install -r requirements.txt` 실행
-- **Azure OpenAI 오류**: API 키와 엔드포인트 확인
-- **ChromaDB 오류**: 디렉토리 권한 및 공간 확인 
+- **Azure OpenAI 오류**: Azure 서비스 연결 상태 확인
+- **ChromaDB 오류**: 디렉토리 권한 및 공간 확인
+- **배포 오류**: Azure Web App 로그 확인 
