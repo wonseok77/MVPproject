@@ -1,6 +1,7 @@
 #!/bin/bash
 
-echo "=== KT DS Interview Analysis System - Azure Startup ==="
+echo "=== KT DS Interview Analysis System - Azure Startup v2.0 ==="
+echo "Startup script updated: $(date)"
 echo "Working directory: $(pwd)"
 echo "Directory contents:"
 ls -la
@@ -40,19 +41,24 @@ export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 echo "PYTHONPATH: $PYTHONPATH"
 
 # 백엔드 디렉토리 확인
+echo "=== DETAILED BACKEND DEBUGGING ==="
 echo "Backend directory contents:"
 ls -la backend/
+echo "Backend/app directory contents:"
 ls -la backend/app/
+echo "Looking for Python files in backend:"
+find backend -name "*.py" -type f
+echo "=== END DEBUGGING ==="
 
-# 서버 실행 (backend 디렉토리로 이동해서 실행)
+# 서버 실행 방법 변경 - backend 디렉토리로 이동
 echo "Attempting to start server from backend directory..."
 cd /home/site/wwwroot/backend
-echo "Current directory: $(pwd)"
+echo "Current directory after cd: $(pwd)"
 echo "Python files in current directory:"
 find . -name "*.py" | head -10
 
-# Method 1: Try running from backend directory
-echo "Method 1: Running from backend directory..."
+# 서버 실행
+echo "Starting uvicorn server..."
 exec python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
 
-# Fixed for Linux deployment - LF line endings 
+# Fixed for Linux deployment - LF line endings - Updated v2.0 
