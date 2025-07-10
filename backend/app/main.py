@@ -75,12 +75,4 @@ async def shutdown_event():
     """애플리케이션 종료시 실행"""
     logger.info("KT DS 면접 분석 시스템 종료")
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    ) 
+# Force redeploy - ensure all backend files are properly deployed to Azure 
