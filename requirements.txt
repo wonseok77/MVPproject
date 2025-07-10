@@ -33,3 +33,5 @@ Pillow>=11.3.0
 
 # 오디오 파일 변환 (m4a → wav for GPT-4o-transcribe 호환성)
 ffmpeg-python>=0.2.0
+
+# Fixed for Linux deployment - LF line endings 
